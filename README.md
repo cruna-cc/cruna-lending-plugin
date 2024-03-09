@@ -1,6 +1,5 @@
-# Cruna Plugin Sample
-
-A Cruna Protocol Plugin boilerplate
+# Cruna Lending Plugin
+This plugin allows projects to lend assets to owners of a vault that have plugged in the plugin.
 
 ## Getting Started
 
@@ -14,14 +13,10 @@ pnpm i
 3. Compile contracts: `npm run compile`
 4. Run tests: `npm test`
 
-## The Badge Collector
+## The Cruna Lending Plugin
+As well as the plugin contracts there is a contract called LendingRules.sol where the rules for lending are defined.
 
-This example is a simple, probably not very useful, badge collector contract that allows users to collect badges. The contract emits an event when a badge is collected.
-It is also able to (try to) transfer the badge to another user — which will fail if the badge is not transferable.
-
-## Your code
-
-Replace the code with your own plugin contract code and update the tests in test/integration.test.js to match your contract.
+You will need to update the LendingRules.sol contract to match your lending rules.
 
 ## Copyright
 
@@ -29,4 +24,5 @@ Replace the code with your own plugin contract code and update the tests in test
 
 ## License
 
-MIT
+GPL-3.0
+```

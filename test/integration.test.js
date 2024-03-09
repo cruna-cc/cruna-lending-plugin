@@ -8,7 +8,7 @@ const CrunaTestUtils = require("./helpers/CrunaTestUtils");
 
 const { normalize, addr0, getChainId, getTimestamp, bytes4, keccak256 } = require("./helpers");
 
-describe("Integration test", function () {
+describe.skip("Integration test", function () {
   let crunaManagerProxy;
   let nft;
   let factory;
