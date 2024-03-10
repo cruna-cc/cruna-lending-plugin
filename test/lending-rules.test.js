@@ -3,7 +3,7 @@ const { ethers } = require("hardhat");
 const EthDeployUtils = require("eth-deploy-utils");
 const deployUtils = new EthDeployUtils();
 
-describe.skip("LendingRules Contract Tests", function () {
+describe("LendingRules Contract Tests", function () {
   let LendingRules;
   let lendingRules;
   let deployer, treasuryWallet, mayG, azraGames, mayGBadge, azraBadge, anotherDepositor;
