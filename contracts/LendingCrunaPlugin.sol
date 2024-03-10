@@ -11,7 +11,9 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
   error InsufficientDepositFee(uint256 requiredFee, uint256 providedFee);
   error InsufficientFunds();
   error TransferFailed();
+  error InvalidLendingRulesAddress();
   error NotDepositor(address caller, address expected);
+  error TransferToTreasuryFailed();
 
   mapping(address => mapping(uint256 => address)) private _depositedAssets;
 
@@ -22,7 +24,9 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
   }
 
   function setLendingRules(address _lendingRulesAddress) external {
-    require(_lendingRulesAddress != address(0), "Invalid address");
+    if (_lendingRulesAddress == address(0)) {
+      revert InvalidLendingRulesAddress();
+    }
     lendingRules = ILendingRules(_lendingRulesAddress);
   }
 
@@ -42,7 +46,9 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
     if (depositFee > 0) {
       address treasuryWallet = lendingRules.getTreasuryWallet();
       bool success = IERC20(stableCoin).transferFrom(msg.sender, treasuryWallet, depositFee);
-      require(success, "Failed to transfer deposit fee to treasury.");
+      if (!success) {
+        revert TransferToTreasuryFailed();
+      }
     }
 
     emit AssetReceived(assetAddress, tokenId, msg.sender);
