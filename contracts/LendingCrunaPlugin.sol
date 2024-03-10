@@ -21,8 +21,6 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
     return bytes4(keccak256("LendingCrunaPlugin"));
   }
 
-  // Remove lendingRules initialization from the constructor
-  // and add a setter method for it
   function setLendingRules(address _lendingRulesAddress) external {
     require(_lendingRulesAddress != address(0), "Invalid address");
     lendingRules = ILendingRules(_lendingRulesAddress);
