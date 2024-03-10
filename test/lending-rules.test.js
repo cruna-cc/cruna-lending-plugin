@@ -1,10 +1,12 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const EthDeployUtils = require("eth-deploy-utils");
+const deployUtils = new EthDeployUtils();
 
 describe.skip("LendingRules Contract Tests", function () {
   let LendingRules;
   let lendingRules;
-  let deployer, treasuryWallet, mayG, azraGames, anotherDepositor;
+  let deployer, treasuryWallet, mayG, azraGames, mayGBadge, azraBadge, anotherDepositor;
 
   before(async function () {
     [deployer, treasuryWallet, mayG, azraGames, anotherDepositor] = await ethers.getSigners();
@@ -13,6 +15,9 @@ describe.skip("LendingRules Contract Tests", function () {
 
   beforeEach(async function () {
     lendingRules = await LendingRules.deploy(deployer.address, treasuryWallet.address, 100);
+    // Badges that Depositors can send to the Plugin Address
+    mayGBadge = await deployUtils.deploy("MagicBadge", mayG.address);
+    azraBadge = await deployUtils.deploy("CoolBadge", azraGames.address);
   });
 
   describe("Deployment and Initial State", function () {
@@ -24,7 +29,9 @@ describe.skip("LendingRules Contract Tests", function () {
   describe("Owner-Only Functions", function () {
     it("Should revert setDepositFee when called by non-owner", async function () {
       // Attempt to set fees by a non-owner account (mayG in this case)
-      await expect(lendingRules.connect(mayG).setDepositFee(azraGames.address, 200)).revertedWith("OwnableUnauthorizedAccount");
+      await expect(lendingRules.connect(mayG).setDepositorConfig(azraGames.address, 200, azraGames.address)).revertedWith(
+        "OwnableUnauthorizedAccount",
+      );
     });
 
     it("Should revert setActivationFee when called by non-owner", async function () {
@@ -39,10 +46,11 @@ describe.skip("LendingRules Contract Tests", function () {
   });
 
   describe("Setting and Getting Fees", function () {
-    it("Should allow setting and retrieving fees for a depositor", async function () {
-      await lendingRules.setDepositFee(mayG.address, 200);
-      const depositFee = await lendingRules.getDepositFee(mayG.address); // This returns a uint256 directly
-      expect(depositFee).to.equal(200); // Corrected to directly compare the uint256 value
+    it("Should allow setting and retrieving config for a depositor", async function () {
+      await lendingRules.setDepositorConfig(mayG.address, 200, mayGBadge.address);
+      const [depositFee, nftContractAddress] = await lendingRules.getDepositorConfig(mayG.address);
+      expect(depositFee).to.equal(200);
+      expect(nftContractAddress).to.equal(mayGBadge.address);
     });
 
     it("Should allow setting and retrieving the activation fee", async function () {
@@ -53,7 +61,9 @@ describe.skip("LendingRules Contract Tests", function () {
 
     // This test correctly tests the behavior you've coded in your smart contract
     it("Should revert when setting fees for zero address depositor", async function () {
-      await expect(lendingRules.setDepositFee(ethers.constants.AddressZero, 100)).to.be.revertedWith("InvalidAddress");
+      await expect(
+        lendingRules.setDepositorConfig(ethers.constants.AddressZero, 100, ethers.constants.AddressZero),
+      ).to.be.revertedWith("InvalidAddress");
     });
   });
 

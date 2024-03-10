@@ -12,13 +12,15 @@ describe("LendingCrunaPlugin tests", function () {
   let crunaVault;
   let factory;
   let usdc;
-  let deployer, user1, user2, mayGDepositor, azraGamesDepositor, anotherDepositor;
+  let deployer, mayGDeployer, azraDeployer, user1, user2, mayGDepositor, azraGamesDepositor, anotherDepositor;
   let mayGBadge, azraBadge, anotherProjectBadge, lendingRules, treasuryWallet;
   let crunaLendingPluginImplentation, crunaLendingPluginProxy;
   let erc6551Registry, crunaRegistry, crunaGuardian;
+  let pluginInstance;
 
   before(async function () {
-    [deployer, user1, user2, , treasuryWallet, mayGDepositor, azraGamesDepositor, anotherDepositor] = await ethers.getSigners();
+    [deployer, mayGDeployer, azraDeployer, user1, user2, treasuryWallet, mayGDepositor, azraGamesDepositor, anotherDepositor] =
+      await ethers.getSigners();
     [erc6551Registry, crunaRegistry, crunaGuardian] = await CrunaTestUtils.deployCanonical(deployer);
   });
 
@@ -36,12 +38,12 @@ describe("LendingCrunaPlugin tests", function () {
     lendingRules = await deployUtils.deploy("LendingRules", deployer.address, treasuryWallet.address, 100);
 
     // Badges that Depositors can send to the Plugin Address
-    mayGBadge = await deployUtils.deploy("MagicBadge", mayGDepositor.address);
-    azraBadge = await deployUtils.deploy("CoolBadge", azraGamesDepositor.address);
+    mayGBadge = await deployUtils.deploy("MagicBadge", mayGDeployer.address);
+    azraBadge = await deployUtils.deploy("CoolBadge", azraDeployer.address);
     anotherProjectBadge = await deployUtils.deploy("SuperTransferableBadge", anotherDepositor.address);
 
     // deploy Cruna Lending plugin
-    crunaLendingPluginImplentation = await deployUtils.deploy("LendingCrunaPlugin", lendingRules.address);
+    crunaLendingPluginImplentation = await deployUtils.deploy("LendingCrunaPlugin");
     crunaLendingPluginProxy = await deployUtils.deploy("LendingCrunaPluginProxy", crunaLendingPluginImplentation.address);
     crunaLendingPluginProxy = await deployUtils.attach("LendingCrunaPlugin", crunaLendingPluginProxy.address);
 
@@ -72,29 +74,7 @@ describe("LendingCrunaPlugin tests", function () {
     return nextTokenId;
   }
 
-  describe("LendingRules contract set and test Initial State", function () {
-    it("Should set get the treasury wallet address after it was deployed", async function () {
-      expect(await lendingRules.getTreasuryWallet()).to.equal(treasuryWallet.address);
-    });
-
-    it("Should set MayG as a depositor and check the fee", async function () {
-      await lendingRules.setDepositFee(mayGDepositor.address, 1);
-      const depositFee = await lendingRules.getDepositFee(mayGDepositor.address);
-      expect(depositFee).to.equal(1);
-    });
-  });
-
-  describe("should allow user1 to buy a vault and plug the LendingCrunaPlugin", async function () {
-    let tokenId = await buyNFT(usdc, 1, user1);
-    const managerAddress = await crunaVault.managerOf(tokenId);
-    const manager = await ethers.getContractAt("CrunaManager", managerAddress);
-
-    await expect(
-      manager.connect(user1).plug("LendingCrunaPlugin", crunaLendingPluginProxy.address, false, false, "0x00000000", 0, 0, 0),
-    ).to.emit(manager, "PluginStatusChange");
-  });
-
-  it("Buy a vault, plug it in, set up a depositor and deposit assets", async function () {
+  async function pluginAndSaveDepositorConfig() {
     let tokenId = await buyNFT(usdc, 1, user1);
     const managerAddress = await crunaVault.managerOf(tokenId);
     const manager = await ethers.getContractAt("CrunaManager", managerAddress);
@@ -103,11 +83,65 @@ describe("LendingCrunaPlugin tests", function () {
       manager.connect(user1).plug("LendingCrunaPlugin", crunaLendingPluginProxy.address, false, false, "0x00000000", 0, 0, 0),
     ).to.emit(manager, "PluginStatusChange");
 
-    // get the plugin address
     const nameId = bytes4(keccak256("LendingCrunaPlugin"));
     const pluginAddress = await manager.pluginAddress(nameId, "0x00000000");
-    const plugin = await ethers.getContractAt("LendingCrunaPlugin", pluginAddress);
+    pluginInstance = await ethers.getContractAt("LendingCrunaPlugin", pluginAddress);
+    await pluginInstance.setLendingRules(lendingRules.address);
 
-    let id = 1;
+    await lendingRules.setDepositorConfig(mayGDepositor.address, 1, mayGBadge.address);
+    const [mayGDepositFee, mayGNftContractAddress] = await lendingRules.getDepositorConfig(mayGDepositor.address);
+    expect(mayGDepositFee).to.equal(1);
+    expect(mayGNftContractAddress).to.equal(mayGBadge.address);
+
+    await lendingRules.setDepositorConfig(azraGamesDepositor.address, 2, azraBadge.address);
+    const [azraDepositFee, azraNftContractAddress] = await lendingRules.getDepositorConfig(azraGamesDepositor.address);
+    expect(azraDepositFee).to.equal(2);
+    expect(azraNftContractAddress).to.equal(azraBadge.address);
+  }
+
+  describe("LendingRules Treasury check", function () {
+    it("Should get the treasury wallet address after it was deployed", async function () {
+      expect(await lendingRules.getTreasuryWallet()).to.equal(treasuryWallet.address);
+    });
+  });
+
+  describe("Testing depositing functionality", async function () {
+    it("Buy and Plug then let MayG deposit an NFT", async function () {
+      await pluginAndSaveDepositorConfig();
+
+      // Mint an NFT to mayGDepositor from the mayGBadge contract
+      const tokenId = 1;
+      await mayGBadge.connect(mayGDeployer).safeMint(mayGDepositor.address, tokenId);
+
+      // Verify mayGDepositor now owns the NFT
+      expect(await mayGBadge.ownerOf(tokenId)).to.equal(mayGDepositor.address);
+
+      // mayGDepositor approves the plugin to transfer their NFT
+      await mayGBadge.connect(mayGDepositor).approve(pluginInstance.address, tokenId);
+
+      // Define deposit fee and prepare USDC for deposit fee payment
+      const [depositFee] = await lendingRules.getDepositorConfig(mayGDepositor.address);
+      // Assuming depositFee already in the correct units for USDC (since normalize("1000") was used)
+
+      // mayGDepositor approves the plugin to spend USDC for the deposit fee
+      await usdc.connect(mayGDepositor).approve(pluginInstance.address, depositFee);
+
+      // Store treasury balance before deposit for comparison
+      const treasuryWalletUSDCBalanceBefore = await usdc.balanceOf(treasuryWallet.address);
+
+      // MayG deposits the NFT into the plugin and covers the deposit fee with USDC
+      await expect(pluginInstance.connect(mayGDepositor).depositAsset(mayGBadge.address, tokenId, usdc.address))
+        .to.emit(pluginInstance, "AssetReceived")
+        .withArgs(mayGBadge.address, tokenId, mayGDepositor.address /* The expected timestamp or another argument here */);
+
+      // // Verify the NFT is now owned by the plugin contract
+      expect(await mayGBadge.ownerOf(tokenId)).to.equal(pluginInstance.address);
+
+      // // Verify the deposit fee in USDC was transferred to the treasury wallet
+      const treasuryWalletUSDCBalanceAfter = await usdc.balanceOf(treasuryWallet.address);
+      expect(treasuryWalletUSDCBalanceAfter.sub(treasuryWalletUSDCBalanceBefore)).to.equal(depositFee);
+
+      // Optionally, verify depositor's record in the plugin (if the plugin supports such functionality)
+    });
   });
 });

@@ -1,52 +1,54 @@
 // SPDX-License-Identifier: GPL3
 pragma solidity ^0.8.13;
 
-import {LendingCrunaPluginBase} from "./LendingCrunaPluginBase.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./ILendingRules.sol";
+
+import {LendingCrunaPluginBase} from "./LendingCrunaPluginBase.sol";
 
 contract LendingCrunaPlugin is LendingCrunaPluginBase {
   error InsufficientDepositFee(uint256 requiredFee, uint256 providedFee);
+  error InsufficientFunds();
+  error TransferFailed();
 
   mapping(address => mapping(uint256 => address)) private _depositedAssets;
 
   ILendingRules public lendingRules;
 
-  constructor(address _lendingRulesAddress) {
-    lendingRules = ILendingRules(_lendingRulesAddress);
-  }
-
   function _nameId() internal view virtual override returns (bytes4) {
     return bytes4(keccak256("LendingCrunaPlugin"));
   }
 
-  // Function to handle the deposit of an ERC721 token
-  function depositAsset(address assetAddress, uint256 tokenId) public payable {
-    // Retrieve the deposit fee for the sender from the LendingRules contract
-    uint256 depositFee = lendingRules.getDepositFee(msg.sender);
+  // Remove lendingRules initialization from the constructor
+  // and add a setter method for it
+  function setLendingRules(address _lendingRulesAddress) external {
+    require(_lendingRulesAddress != address(0), "Invalid address");
+    lendingRules = ILendingRules(_lendingRulesAddress);
+  }
 
-    if (msg.value < depositFee) {
-      revert InsufficientDepositFee({requiredFee: depositFee, providedFee: msg.value});
+  // Function to handle the deposit of an ERC721 token
+  function depositAsset(address assetAddress, uint256 tokenId, address stableCoin) public {
+    (uint256 depositFee, ) = lendingRules.getDepositorConfig(msg.sender);
+
+    if (IERC20(stableCoin).balanceOf(msg.sender) < depositFee) {
+      revert InsufficientFunds();
     }
 
-    // Transfer the asset
     IERC721(assetAddress).safeTransferFrom(msg.sender, address(this), tokenId);
     require(IERC721(assetAddress).ownerOf(tokenId) == address(this), "Transfer failed");
 
-    // Store the asset depositor
     _depositedAssets[assetAddress][tokenId] = msg.sender;
 
-    // Only transfer the deposit fee if it's greater than 0
     if (depositFee > 0) {
       address treasuryWallet = lendingRules.getTreasuryWallet();
-      payable(treasuryWallet).transfer(depositFee);
+      bool success = IERC20(stableCoin).transferFrom(msg.sender, treasuryWallet, depositFee);
+      require(success, "Failed to transfer deposit fee to treasury.");
     }
 
-    // Emit an event
-    emit AssetReceived(assetAddress, tokenId, msg.sender, block.timestamp);
+    emit AssetReceived(assetAddress, tokenId, msg.sender);
   }
 
-  // Function to handle the withdrawal of a deposited ERC721 token
   function withdrawAsset(address assetAddress, uint256 tokenId) public {
     require(_depositedAssets[assetAddress][tokenId] == msg.sender, "Caller is not the depositor");
     _depositedAssets[assetAddress][tokenId] = address(0);

@@ -8,15 +8,16 @@ contract LendingRules is Ownable {
   error InvalidAddress();
   error InvalidFees();
 
-  struct DepositFee {
+  struct DepositorConfig {
     uint256 depositFee; // Fee for depositing assets by each project/depositor
+    address nftContractAddress; // NFT contract address associated with the depositor
   }
 
   uint256 private _activationFee; // Global activation fee for using the plugin
-  mapping(address => DepositFee) private _feesMapping; // Mapping to store deposit fees for each project/depositor
+  mapping(address => DepositorConfig) private _depositorConfigs; // Mapping to store config for each project/depositor
   address private _treasuryWallet; // Treasury wallet address
 
-  event DepositFeeSet(address indexed depositor, uint256 depositFee);
+  event DepositorConfigSet(address indexed depositor, uint256 depositFee, address nftContractAddress);
   event ActivationFeeSet(uint256 activationFee);
   event TreasuryWalletUpdated(address newTreasuryWallet);
 
@@ -25,10 +26,10 @@ contract LendingRules is Ownable {
     setActivationFee(activationFee);
   }
 
-  function setDepositFee(address depositor, uint256 depositFee) public onlyOwner {
-    if (depositor == address(0)) revert InvalidAddress();
-    _feesMapping[depositor] = DepositFee(depositFee);
-    emit DepositFeeSet(depositor, depositFee);
+  function setDepositorConfig(address depositor, uint256 depositFee, address nftContractAddress) public onlyOwner {
+    require(depositor != address(0) && nftContractAddress != address(0), "InvalidAddress");
+    _depositorConfigs[depositor] = DepositorConfig(depositFee, nftContractAddress);
+    emit DepositorConfigSet(depositor, depositFee, nftContractAddress);
   }
 
   function setActivationFee(uint256 activationFee) public onlyOwner {
@@ -37,13 +38,13 @@ contract LendingRules is Ownable {
   }
 
   function setTreasuryWallet(address newTreasuryWallet) public onlyOwner {
-    if (newTreasuryWallet == address(0)) revert TreasuryWalletZeroAddress();
+    require(newTreasuryWallet != address(0), "TreasuryWalletZeroAddress");
     _treasuryWallet = newTreasuryWallet;
     emit TreasuryWalletUpdated(newTreasuryWallet);
   }
 
-  function getDepositFee(address depositor) public view returns (uint256) {
-    return _feesMapping[depositor].depositFee;
+  function getDepositorConfig(address depositor) public view returns (uint256, address) {
+    return (_depositorConfigs[depositor].depositFee, _depositorConfigs[depositor].nftContractAddress);
   }
 
   function getActivationFee() public view returns (uint256) {

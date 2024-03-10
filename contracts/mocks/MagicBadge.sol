@@ -13,11 +13,4 @@ contract MagicBadge is ERC721, Ownable {
   function safeMint(address to, uint256 tokenId) public onlyOwner {
     _safeMint(to, tokenId);
   }
-
-  function _update(address to, uint256 tokenId, address auth) internal virtual override(ERC721) returns (address) {
-    if (_ownerOf(tokenId) != address(0)) {
-      revert NotTransferable();
-    }
-    return super._update(to, tokenId, auth);
-  }
 }

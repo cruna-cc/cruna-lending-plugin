@@ -7,7 +7,8 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 import {CrunaPluginBase} from "@cruna/protocol/plugins/CrunaPluginBase.sol";
 
 abstract contract LendingCrunaPluginBase is CrunaPluginBase, IERC721Receiver {
-  event AssetReceived(address indexed assetAddress, uint256 indexed tokenId, address depositor, uint256 timestamp);
+  event AssetReceived(address indexed assetAddress, uint256 indexed tokenId, address depositor);
+
   event AssetWithdrawn(address indexed assetAddress, uint256 indexed tokenId, address withdrawer, uint256 timestamp);
 
   error InvalidValidity();
@@ -17,7 +18,7 @@ abstract contract LendingCrunaPluginBase is CrunaPluginBase, IERC721Receiver {
   }
 
   function onERC721Received(address, address from, uint256 receivedTokenId, bytes memory) external virtual returns (bytes4) {
-    emit AssetReceived(_msgSender(), receivedTokenId, from, block.timestamp);
+    emit AssetReceived(_msgSender(), receivedTokenId, from);
     return IERC721Receiver.onERC721Received.selector;
   }
 
