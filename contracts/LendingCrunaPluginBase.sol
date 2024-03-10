@@ -6,7 +6,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {CrunaPluginBase} from "@cruna/protocol/plugins/CrunaPluginBase.sol";
 
-abstract contract CrunaLendingPluginBase is CrunaPluginBase, IERC721Receiver {
+abstract contract LendingCrunaPluginBase is CrunaPluginBase, IERC721Receiver {
   event AssetReceived(address indexed assetAddress, uint256 indexed tokenId, address depositor, uint256 timestamp);
   event AssetWithdrawn(address indexed assetAddress, uint256 indexed tokenId, address withdrawer, uint256 timestamp);
 
@@ -43,33 +43,6 @@ abstract contract CrunaLendingPluginBase is CrunaPluginBase, IERC721Receiver {
 
   function _reset() internal {
     // nothing to reset
-  }
-
-  function transferBadge(
-    address badgeAddress,
-    uint256 badgeTokenId,
-    uint256 timestamp,
-    uint256 validFor,
-    bytes calldata signature
-  ) external virtual onlyTokenOwner {
-    if (validFor > 0) {
-      if (validFor > 9999999) revert InvalidValidity();
-      _validateAndCheckSignature(
-        this.transferBadge.selector,
-        owner(),
-        badgeAddress,
-        tokenAddress(),
-        tokenId(),
-        badgeTokenId,
-        0,
-        0,
-        timestamp * 1e7 + validFor,
-        signature
-      );
-    }
-
-    // it will revert if the token is a soul-bound token or any locked token
-    IERC721(badgeAddress).transferFrom(address(this), owner(), badgeTokenId);
   }
 
   // @dev This empty reserved space is put in place to allow future versions to add new

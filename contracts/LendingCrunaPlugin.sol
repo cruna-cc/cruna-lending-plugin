@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL3
 pragma solidity ^0.8.13;
 
-import {CrunaLendingPluginBase} from "./CrunaLendingPluginBase.sol";
+import {LendingCrunaPluginBase} from "./LendingCrunaPluginBase.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "./ILendingRules.sol";
 
-contract CrunaLendingPlugin is CrunaLendingPluginBase {
+contract LendingCrunaPlugin is LendingCrunaPluginBase {
   error InsufficientDepositFee(uint256 requiredFee, uint256 providedFee);
 
   mapping(address => mapping(uint256 => address)) private _depositedAssets;
@@ -17,7 +17,7 @@ contract CrunaLendingPlugin is CrunaLendingPluginBase {
   }
 
   function _nameId() internal view virtual override returns (bytes4) {
-    return bytes4(keccak256("CrunaLendingPlugin"));
+    return bytes4(keccak256("LendingCrunaPlugin"));
   }
 
   // Function to handle the deposit of an ERC721 token

@@ -7,7 +7,7 @@ const CrunaTestUtils = require("./helpers/CrunaTestUtils");
 
 const { normalize, addr0, getChainId, getTimestamp, bytes4, keccak256 } = require("./helpers");
 
-describe("CrunaLendingPlugin tests", function () {
+describe("LendingCrunaPlugin tests", function () {
   let crunaManagerProxy;
   let crunaVault;
   let factory;
@@ -41,9 +41,9 @@ describe("CrunaLendingPlugin tests", function () {
     anotherProjectBadge = await deployUtils.deploy("SuperTransferableBadge", anotherDepositor.address);
 
     // deploy Cruna Lending plugin
-    crunaLendingPluginImplentation = await deployUtils.deploy("CrunaLendingPlugin", lendingRules.address);
-    crunaLendingPluginProxy = await deployUtils.deploy("CrunaLendingPluginProxy", crunaLendingPluginImplentation.address);
-    crunaLendingPluginProxy = await deployUtils.attach("CrunaLendingPlugin", crunaLendingPluginProxy.address);
+    crunaLendingPluginImplentation = await deployUtils.deploy("LendingCrunaPlugin", lendingRules.address);
+    crunaLendingPluginProxy = await deployUtils.deploy("LendingCrunaPluginProxy", crunaLendingPluginImplentation.address);
+    crunaLendingPluginProxy = await deployUtils.attach("LendingCrunaPlugin", crunaLendingPluginProxy.address);
 
     await usdc.mint(deployer.address, normalize("10000"));
     await usdc.mint(mayGDepositor.address, normalize("1000"));
@@ -78,25 +78,35 @@ describe("CrunaLendingPlugin tests", function () {
     });
 
     it("Should set MayG as a depositor and check the fee", async function () {
-      await lendingRules.setDepositFee(mayGDepositor.address, 200);
+      await lendingRules.setDepositFee(mayGDepositor.address, 1);
       const depositFee = await lendingRules.getDepositFee(mayGDepositor.address);
-      expect(depositFee).to.equal(200);
+      expect(depositFee).to.equal(1);
     });
   });
 
-  describe("should allow user1 to buy a vault and plug the CrunaLendingPlugin", async function () {
+  describe("should allow user1 to buy a vault and plug the LendingCrunaPlugin", async function () {
     let tokenId = await buyNFT(usdc, 1, user1);
     const managerAddress = await crunaVault.managerOf(tokenId);
     const manager = await ethers.getContractAt("CrunaManager", managerAddress);
 
     await expect(
-      manager.connect(user1).plug("CrunaLendingPlugin", crunaLendingPluginProxy.address, false, false, "0x00000000", 0, 0, 0),
+      manager.connect(user1).plug("LendingCrunaPlugin", crunaLendingPluginProxy.address, false, false, "0x00000000", 0, 0, 0),
+    ).to.emit(manager, "PluginStatusChange");
+  });
+
+  it("Buy a vault, plug it in, set up a depositor and deposit assets", async function () {
+    let tokenId = await buyNFT(usdc, 1, user1);
+    const managerAddress = await crunaVault.managerOf(tokenId);
+    const manager = await ethers.getContractAt("CrunaManager", managerAddress);
+
+    await expect(
+      manager.connect(user1).plug("LendingCrunaPlugin", crunaLendingPluginProxy.address, false, false, "0x00000000", 0, 0, 0),
     ).to.emit(manager, "PluginStatusChange");
 
     // get the plugin address
-    const nameId = bytes4(keccak256("CrunaLendingPlugin"));
+    const nameId = bytes4(keccak256("LendingCrunaPlugin"));
     const pluginAddress = await manager.pluginAddress(nameId, "0x00000000");
-    const plugin = await ethers.getContractAt("CrunaLendingPlugin", pluginAddress);
+    const plugin = await ethers.getContractAt("LendingCrunaPlugin", pluginAddress);
 
     let id = 1;
   });
