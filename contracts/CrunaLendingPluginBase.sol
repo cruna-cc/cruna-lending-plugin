@@ -7,7 +7,8 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 import {CrunaPluginBase} from "@cruna/protocol/plugins/CrunaPluginBase.sol";
 
 abstract contract CrunaLendingPluginBase is CrunaPluginBase, IERC721Receiver {
-  event AssetReceived(address indexed badgeAddress, uint256 indexed badgeTokenId, address from, uint256 timestamp);
+  event AssetReceived(address indexed assetAddress, uint256 indexed tokenId, address depositor, uint256 timestamp);
+  event AssetWithdrawn(address indexed assetAddress, uint256 indexed tokenId, address withdrawer, uint256 timestamp);
 
   error InvalidValidity();
 

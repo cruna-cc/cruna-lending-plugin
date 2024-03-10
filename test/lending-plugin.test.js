@@ -7,13 +7,13 @@ const CrunaTestUtils = require("./helpers/CrunaTestUtils");
 
 const { normalize, addr0, getChainId, getTimestamp, bytes4, keccak256 } = require("./helpers");
 
-describe.skip("CrunaLendingPlugin tests", function () {
+describe("CrunaLendingPlugin tests", function () {
   let crunaManagerProxy;
   let crunaVault;
   let factory;
   let usdc;
   let deployer, user1, user2, mayGDepositor, azraGamesDepositor, anotherDepositor;
-  let mayGBadge, azraBadge, anotherProjectBadge, LendingRules, treasuryWallet;
+  let mayGBadge, azraBadge, anotherProjectBadge, lendingRules, treasuryWallet;
   let crunaLendingPluginImplentation, crunaLendingPluginProxy;
   let erc6551Registry, crunaRegistry, crunaGuardian;
 
@@ -25,7 +25,7 @@ describe.skip("CrunaLendingPlugin tests", function () {
   async function initAndDeploy() {
     crunaManagerProxy = await CrunaTestUtils.deployManager(deployer);
     crunaVault = await deployUtils.deploy("SomeProtectedNFT", deployer.address);
-    await crunaVault.init(crunaManagerProxy.address, 1, true);
+    await crunaVault.init(crunaManagerProxy.address, true, true, 1, 0);
     factory = await deployUtils.deployProxy("ProtectedNFTFactory", crunaVault.address);
     await crunaVault.setFactory(factory.address);
 
@@ -33,7 +33,7 @@ describe.skip("CrunaLendingPlugin tests", function () {
     usdc = await deployUtils.deploy("USDCoin", deployer.address);
 
     // Deploy the LendingRules contract with an activation fee of 100
-    LendingRules = await deployUtils.deploy("LendingRules", deployer.address, treasuryWallet.address, 100);
+    lendingRules = await deployUtils.deploy("LendingRules", deployer.address, treasuryWallet.address, 100);
 
     // Badges that Depositors can send to the Plugin Address
     mayGBadge = await deployUtils.deploy("MagicBadge", mayGDepositor.address);
@@ -41,7 +41,7 @@ describe.skip("CrunaLendingPlugin tests", function () {
     anotherProjectBadge = await deployUtils.deploy("SuperTransferableBadge", anotherDepositor.address);
 
     // deploy Cruna Lending plugin
-    crunaLendingPluginImplentation = await deployUtils.deploy("CrunaLendingPlugin");
+    crunaLendingPluginImplentation = await deployUtils.deploy("CrunaLendingPlugin", lendingRules.address);
     crunaLendingPluginProxy = await deployUtils.deploy("CrunaLendingPluginProxy", crunaLendingPluginImplentation.address);
     crunaLendingPluginProxy = await deployUtils.attach("CrunaLendingPlugin", crunaLendingPluginProxy.address);
 
@@ -63,7 +63,7 @@ describe.skip("CrunaLendingPlugin tests", function () {
   async function buyNFT(token, amount, buyer) {
     let price = await factory.finalPrice(token.address);
     await token.connect(buyer).approve(factory.address, price.mul(amount));
-    let nextTokenId = await crunaVault.nextTokenId();
+    let nextTokenId = (await crunaVault.nftConf()).nextTokenId;
 
     await expect(factory.connect(buyer).buy(token.address, amount))
       .to.emit(crunaVault, "Transfer")
@@ -72,13 +72,19 @@ describe.skip("CrunaLendingPlugin tests", function () {
     return nextTokenId;
   }
 
-  it("Deployment of LendingRules contract and Initial State", function () {
+  describe("LendingRules contract set and test Initial State", function () {
     it("Should set get the treasury wallet address after it was deployed", async function () {
-      expect(await LendingRules.getTreasuryWallet()).to.equal(treasuryWallet.address);
+      expect(await lendingRules.getTreasuryWallet()).to.equal(treasuryWallet.address);
+    });
+
+    it("Should set MayG as a depositor and check the fee", async function () {
+      await lendingRules.setDepositFee(mayGDepositor.address, 200);
+      const depositFee = await lendingRules.getDepositFee(mayGDepositor.address);
+      expect(depositFee).to.equal(200);
     });
   });
 
-  it("should allow user1 to buy a vault and plug the CrunaLendingPlugin", async function () {
+  describe("should allow user1 to buy a vault and plug the CrunaLendingPlugin", async function () {
     let tokenId = await buyNFT(usdc, 1, user1);
     const managerAddress = await crunaVault.managerOf(tokenId);
     const manager = await ethers.getContractAt("CrunaManager", managerAddress);
