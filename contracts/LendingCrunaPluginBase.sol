@@ -8,8 +8,7 @@ import {CrunaPluginBase} from "@cruna/protocol/plugins/CrunaPluginBase.sol";
 
 abstract contract LendingCrunaPluginBase is CrunaPluginBase, IERC721Receiver {
   event AssetReceived(address indexed assetAddress, uint256 indexed tokenId, address depositor);
-
-  event AssetWithdrawn(address indexed assetAddress, uint256 indexed tokenId, address withdrawer, uint256 timestamp);
+  event AssetWithdrawn(address indexed assetAddress, uint256 indexed tokenId, address withdrawer);
 
   error InvalidValidity();
 

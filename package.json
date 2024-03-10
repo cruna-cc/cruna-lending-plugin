@@ -10,6 +10,7 @@
     "lint": "npm run lint:sol && npm run lint:js",
     "lint:sol": "prettier --write 'contracts/**/*.sol' && solhint 'contracts/**/*.sol'",
     "lint:js": "npx prettier --write ./test/**/*.js ./**/*.js",
+    "coverage": "rimraf coverage coverage.json && npx hardhat coverage",
     "prepare": "husky install",
     "size": "npx hardhat size-contracts",
     "postinstall": "./post-install.sh"

@@ -141,7 +141,15 @@ describe("LendingCrunaPlugin tests", function () {
       const treasuryWalletUSDCBalanceAfter = await usdc.balanceOf(treasuryWallet.address);
       expect(treasuryWalletUSDCBalanceAfter.sub(treasuryWalletUSDCBalanceBefore)).to.equal(depositFee);
 
-      // Optionally, verify depositor's record in the plugin (if the plugin supports such functionality)
+      // Withdraw the NFT from the plugin back to mayGDepositor
+      await expect(pluginInstance.connect(mayGDepositor).withdrawAsset(mayGBadge.address, tokenId))
+        .to.emit(pluginInstance, "AssetWithdrawn")
+        .withArgs(mayGBadge.address, tokenId, mayGDepositor.address);
+
+      // Verify the NFT is now owned by mayGDepositor again
+      expect(await mayGBadge.ownerOf(tokenId)).to.equal(mayGDepositor.address);
+
+      // Optionally, if you had a method to check the deposit record, verify it no longer exists or reflects the withdrawal
     });
   });
 });

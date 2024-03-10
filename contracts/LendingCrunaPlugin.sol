@@ -11,6 +11,7 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
   error InsufficientDepositFee(uint256 requiredFee, uint256 providedFee);
   error InsufficientFunds();
   error TransferFailed();
+  error NotDepositor(address caller, address expected);
 
   mapping(address => mapping(uint256 => address)) private _depositedAssets;
 
@@ -50,10 +51,12 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
   }
 
   function withdrawAsset(address assetAddress, uint256 tokenId) public {
-    require(_depositedAssets[assetAddress][tokenId] == msg.sender, "Caller is not the depositor");
+    if (_depositedAssets[assetAddress][tokenId] != msg.sender) {
+      revert NotDepositor(msg.sender, _depositedAssets[assetAddress][tokenId]);
+    }
     _depositedAssets[assetAddress][tokenId] = address(0);
     IERC721(assetAddress).safeTransferFrom(address(this), msg.sender, tokenId);
-    emit AssetWithdrawn(assetAddress, tokenId, msg.sender, block.timestamp);
+    emit AssetWithdrawn(assetAddress, tokenId, msg.sender);
   }
 
   uint256[50] private __gap; // Reserved space for future upgrades
