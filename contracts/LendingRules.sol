@@ -5,46 +5,46 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract LendingRules is Ownable {
   error TreasuryWalletZeroAddress();
-  error InvalidAddress();
-  error InvalidFees();
+  error InvalidNFTContractAddress();
+  error UnauthorizedAccess();
 
-  struct DepositorConfig {
-    uint256 depositFee; // Fee for depositing assets by each project/depositor
-    address nftContractAddress; // NFT contract address associated with the depositor
+  struct NFTContractConfig {
+    bool isWhitelisted;
   }
 
-  uint256 private _activationFee; // Global activation fee for using the plugin
-  mapping(address => DepositorConfig) private _depositorConfigs; // Mapping to store config for each project/depositor
-  address private _treasuryWallet; // Treasury wallet address
+  uint256 private _activationFee;
+  mapping(address => NFTContractConfig) public whitelistedNFTContracts;
+  address private _treasuryWallet;
 
-  event DepositorConfigSet(address indexed depositor, uint256 depositFee, address nftContractAddress);
+  event NFTContractWhitelisted(address indexed nftContractAddress, bool isWhitelisted);
   event ActivationFeeSet(uint256 activationFee);
   event TreasuryWalletUpdated(address newTreasuryWallet);
 
   constructor(address initialOwner, address treasuryWallet, uint256 activationFee) Ownable(initialOwner) {
-    setTreasuryWallet(treasuryWallet);
-    setActivationFee(activationFee);
+    if (treasuryWallet == address(0)) revert TreasuryWalletZeroAddress();
+    _treasuryWallet = treasuryWallet;
+    _activationFee = activationFee;
   }
 
-  function setDepositorConfig(address depositor, uint256 depositFee, address nftContractAddress) public onlyOwner {
-    require(depositor != address(0) && nftContractAddress != address(0), "InvalidAddress");
-    _depositorConfigs[depositor] = DepositorConfig(depositFee, nftContractAddress);
-    emit DepositorConfigSet(depositor, depositFee, nftContractAddress);
+  function whitelistNFTContract(address nftContractAddress, bool isWhitelisted) external onlyOwner {
+    if (nftContractAddress == address(0)) revert InvalidNFTContractAddress();
+    whitelistedNFTContracts[nftContractAddress].isWhitelisted = isWhitelisted;
+    emit NFTContractWhitelisted(nftContractAddress, isWhitelisted);
   }
 
-  function setActivationFee(uint256 activationFee) public onlyOwner {
+  function setActivationFee(uint256 activationFee) external onlyOwner {
     _activationFee = activationFee;
     emit ActivationFeeSet(activationFee);
   }
 
-  function setTreasuryWallet(address newTreasuryWallet) public onlyOwner {
-    require(newTreasuryWallet != address(0), "TreasuryWalletZeroAddress");
+  function setTreasuryWallet(address newTreasuryWallet) external onlyOwner {
+    if (newTreasuryWallet == address(0)) revert TreasuryWalletZeroAddress();
     _treasuryWallet = newTreasuryWallet;
     emit TreasuryWalletUpdated(newTreasuryWallet);
   }
 
-  function getDepositorConfig(address depositor) public view returns (uint256, address) {
-    return (_depositorConfigs[depositor].depositFee, _depositorConfigs[depositor].nftContractAddress);
+  function isNFTContractWhitelisted(address nftContractAddress) public view returns (bool) {
+    return whitelistedNFTContracts[nftContractAddress].isWhitelisted;
   }
 
   function getActivationFee() public view returns (uint256) {
