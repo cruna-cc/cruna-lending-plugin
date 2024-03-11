@@ -5,9 +5,9 @@ const deployUtils = new EthDeployUtils();
 
 const CrunaTestUtils = require("./helpers/CrunaTestUtils");
 
-const { normalize, addr0, getChainId, getTimestamp, bytes4, keccak256 } = require("./helpers");
+const { normalize, addr0, bytes4, keccak256 } = require("./helpers");
 
-describe.skip("LendingCrunaPlugin tests", function () {
+describe("LendingCrunaPlugin tests", function () {
   let crunaManagerProxy;
   let crunaVault;
   let factory;
@@ -88,15 +88,9 @@ describe.skip("LendingCrunaPlugin tests", function () {
     pluginInstance = await ethers.getContractAt("LendingCrunaPlugin", pluginAddress);
     await pluginInstance.setLendingRules(lendingRules.address);
 
-    // await lendingRules.setDepositorConfig(mayGDepositor.address, 1, mayGBadge.address);
-    // const [mayGDepositFee, mayGNftContractAddress] = await lendingRules.getDepositorConfig(mayGDepositor.address);
-    // expect(mayGDepositFee).to.equal(1);
-    // expect(mayGNftContractAddress).to.equal(mayGBadge.address);
-    //
-    // await lendingRules.setDepositorConfig(azraGamesDepositor.address, 2, azraBadge.address);
-    // const [azraDepositFee, azraNftContractAddress] = await lendingRules.getDepositorConfig(azraGamesDepositor.address);
-    // expect(azraDepositFee).to.equal(2);
-    // expect(azraNftContractAddress).to.equal(azraBadge.address);
+    // Assuming pluginInstance and lendingRules are already defined and set up in your tests
+    const setLendingRulesAddress = await pluginInstance.lendingRules();
+    expect(setLendingRulesAddress).to.equal(lendingRules.address);
   }
 
   describe("LendingRules Treasury check", function () {
@@ -140,9 +134,9 @@ describe.skip("LendingCrunaPlugin tests", function () {
 
   describe("Testing depositing functionality for Azra with special deposit fee", async function () {
     it("Set special deposit fee for AzraBadge, then deposit and withdraw an NFT", async function () {
+      await pluginAndSaveDepositorConfig();
       // Set a special deposit fee for the AzraBadge contract
       await lendingRules.setSpecialDepositFee(azraBadge.address, 50);
-
       const tokenId = 2; // Assuming a different tokenId for uniqueness
       await azraBadge.connect(azraDeployer).safeMint(azraGamesDepositor.address, tokenId);
       expect(await azraBadge.ownerOf(tokenId)).to.equal(azraGamesDepositor.address);
@@ -150,9 +144,11 @@ describe.skip("LendingCrunaPlugin tests", function () {
       await azraBadge.connect(azraGamesDepositor).approve(pluginInstance.address, tokenId);
 
       // Retrieve the special deposit fee for the AzraBadge collection
+      // const depositFee = await lendingRules.getDepositFee(azraBadge.address);
       const depositFee = await lendingRules.getDepositFee(azraBadge.address);
       await usdc.connect(azraGamesDepositor).approve(pluginInstance.address, depositFee);
 
+      // Get the treasury balance before the deposit, for later.
       const treasuryWalletUSDCBalanceBefore = await usdc.balanceOf(treasuryWallet.address);
 
       await expect(pluginInstance.connect(azraGamesDepositor).depositAsset(azraBadge.address, tokenId, usdc.address))
