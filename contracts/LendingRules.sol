@@ -5,50 +5,47 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract LendingRules is Ownable {
   error TreasuryWalletZeroAddress();
-  error InvalidAddress();
-  error InvalidFees();
+  error InvalidNFTContractAddress();
+  error InvalidDepositFee();
 
-  struct DepositorConfig {
-    uint256 depositFee; // Fee for depositing assets by each project/depositor
-    address nftContractAddress; // NFT contract address associated with the depositor
-  }
+  uint256 private _defaultDepositFee;
+  mapping(address => uint256) private _specialDepositFees;
+  address private _treasuryWallet;
 
-  uint256 private _activationFee; // Global activation fee for using the plugin
-  mapping(address => DepositorConfig) private _depositorConfigs; // Mapping to store config for each project/depositor
-  address private _treasuryWallet; // Treasury wallet address
-
-  event DepositorConfigSet(address indexed depositor, uint256 depositFee, address nftContractAddress);
-  event ActivationFeeSet(uint256 activationFee);
+  event DepositFeeSet(uint256 defaultDepositFee);
+  event SpecialDepositFeeSet(address indexed nftContract, uint256 depositFee);
   event TreasuryWalletUpdated(address newTreasuryWallet);
 
-  constructor(address initialOwner, address treasuryWallet, uint256 activationFee) Ownable(initialOwner) {
+  constructor(address initialOwner, address treasuryWallet, uint256 defaultDepositFee) Ownable(initialOwner) {
     setTreasuryWallet(treasuryWallet);
-    setActivationFee(activationFee);
+    setDefaultDepositFee(defaultDepositFee);
   }
 
-  function setDepositorConfig(address depositor, uint256 depositFee, address nftContractAddress) public onlyOwner {
-    require(depositor != address(0) && nftContractAddress != address(0), "InvalidAddress");
-    _depositorConfigs[depositor] = DepositorConfig(depositFee, nftContractAddress);
-    emit DepositorConfigSet(depositor, depositFee, nftContractAddress);
+  // Set the default deposit fee
+  function setDefaultDepositFee(uint256 defaultDepositFee) public onlyOwner {
+    if (defaultDepositFee == 0) revert InvalidDepositFee();
+    _defaultDepositFee = defaultDepositFee;
+    emit DepositFeeSet(defaultDepositFee);
   }
 
-  function setActivationFee(uint256 activationFee) public onlyOwner {
-    _activationFee = activationFee;
-    emit ActivationFeeSet(activationFee);
+  // Set a special deposit fee for a specific NFT collection
+  function setSpecialDepositFee(address nftContractAddress, uint256 depositFee) public onlyOwner {
+    if (nftContractAddress == address(0)) revert InvalidNFTContractAddress();
+    if (depositFee == 0) revert InvalidDepositFee();
+    _specialDepositFees[nftContractAddress] = depositFee;
+    emit SpecialDepositFeeSet(nftContractAddress, depositFee);
+  }
+
+  // Retrieve the deposit fee for an NFT collection, returning the default if no special fee is set
+  function getDepositFee(address nftContractAddress) public view returns (uint256) {
+    uint256 specialFee = _specialDepositFees[nftContractAddress];
+    return specialFee != 0 ? specialFee : _defaultDepositFee;
   }
 
   function setTreasuryWallet(address newTreasuryWallet) public onlyOwner {
-    require(newTreasuryWallet != address(0), "TreasuryWalletZeroAddress");
+    if (newTreasuryWallet == address(0)) revert TreasuryWalletZeroAddress();
     _treasuryWallet = newTreasuryWallet;
     emit TreasuryWalletUpdated(newTreasuryWallet);
-  }
-
-  function getDepositorConfig(address depositor) public view returns (uint256, address) {
-    return (_depositorConfigs[depositor].depositFee, _depositorConfigs[depositor].nftContractAddress);
-  }
-
-  function getActivationFee() public view returns (uint256) {
-    return _activationFee;
   }
 
   function getTreasuryWallet() public view returns (address) {

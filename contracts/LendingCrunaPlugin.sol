@@ -23,6 +23,7 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
     return bytes4(keccak256("LendingCrunaPlugin"));
   }
 
+  // TODO This should be only updated by the owner
   function setLendingRules(address _lendingRulesAddress) external {
     if (_lendingRulesAddress == address(0)) {
       revert InvalidLendingRulesAddress();
@@ -32,7 +33,8 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
 
   // Function to handle the deposit of an ERC721 token
   function depositAsset(address assetAddress, uint256 tokenId, address stableCoin) public {
-    (uint256 depositFee, ) = lendingRules.getDepositorConfig(msg.sender);
+    // Correctly calling getDepositFee to check for special pricing or default fee
+    uint256 depositFee = lendingRules.getDepositFee(assetAddress);
 
     if (IERC20(stableCoin).balanceOf(msg.sender) < depositFee) {
       revert InsufficientFunds();
