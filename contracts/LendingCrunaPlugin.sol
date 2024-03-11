@@ -14,6 +14,7 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
   error InvalidLendingRulesAddress();
   error NotDepositor(address caller, address expected);
   error TransferToTreasuryFailed();
+  error TransferNotCompleted(address assetAddress, uint256 tokenId);
 
   mapping(address => mapping(uint256 => address)) private _depositedAssets;
 
@@ -41,7 +42,9 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
     }
 
     IERC721(assetAddress).safeTransferFrom(msg.sender, address(this), tokenId);
-    require(IERC721(assetAddress).ownerOf(tokenId) == address(this), "Transfer failed");
+    if (IERC721(assetAddress).ownerOf(tokenId) != address(this)) {
+      revert TransferNotCompleted(assetAddress, tokenId);
+    }
 
     _depositedAssets[assetAddress][tokenId] = msg.sender;
 
