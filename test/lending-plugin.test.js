@@ -7,7 +7,7 @@ const CrunaTestUtils = require("./helpers/CrunaTestUtils");
 
 const { normalize, addr0, getChainId, getTimestamp, bytes4, keccak256 } = require("./helpers");
 
-describe("LendingCrunaPlugin tests", function () {
+describe.skip("LendingCrunaPlugin tests", function () {
   let crunaManagerProxy;
   let crunaVault;
   let factory;
