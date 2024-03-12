@@ -7,7 +7,7 @@ const CrunaTestUtils = require("./helpers/CrunaTestUtils");
 
 const { normalize, addr0, bytes4, keccak256 } = require("./helpers");
 
-describe("LendingCrunaPlugin tests", function () {
+describe("LendingCrunaPluginMock tests", function () {
   let crunaManagerProxy;
   let crunaVault;
   let factory;
@@ -43,9 +43,9 @@ describe("LendingCrunaPlugin tests", function () {
     anotherProjectBadge = await deployUtils.deploy("SuperTransferableBadge", anotherDepositor.address);
 
     // deploy Cruna Lending plugin
-    crunaLendingPluginImplentation = await deployUtils.deploy("LendingCrunaPlugin");
+    crunaLendingPluginImplentation = await deployUtils.deploy("LendingCrunaPluginMock");
     crunaLendingPluginProxy = await deployUtils.deploy("LendingCrunaPluginProxy", crunaLendingPluginImplentation.address);
-    crunaLendingPluginProxy = await deployUtils.attach("LendingCrunaPlugin", crunaLendingPluginProxy.address);
+    crunaLendingPluginProxy = await deployUtils.attach("LendingCrunaPluginMock", crunaLendingPluginProxy.address);
 
     await usdc.mint(deployer.address, normalize("10000"));
     await usdc.mint(mayGDepositor.address, normalize("1000"));
@@ -80,17 +80,22 @@ describe("LendingCrunaPlugin tests", function () {
     const manager = await ethers.getContractAt("CrunaManager", managerAddress);
 
     await expect(
-      manager.connect(user1).plug("LendingCrunaPlugin", crunaLendingPluginProxy.address, false, false, "0x00000000", 0, 0, 0),
+      manager
+        .connect(user1)
+        .plug("LendingCrunaPluginMock", crunaLendingPluginProxy.address, false, false, "0x00000000", 0, 0, 0),
     ).to.emit(manager, "PluginStatusChange");
 
-    const nameId = bytes4(keccak256("LendingCrunaPlugin"));
+    const nameId = bytes4(keccak256("LendingCrunaPluginMock"));
     const pluginAddress = await manager.pluginAddress(nameId, "0x00000000");
-    pluginInstance = await ethers.getContractAt("LendingCrunaPlugin", pluginAddress);
+    pluginInstance = await ethers.getContractAt("LendingCrunaPluginMock", pluginAddress);
     await pluginInstance.setLendingRules(lendingRules.address);
 
     // Assuming pluginInstance and lendingRules are already defined and set up in your tests
     const setLendingRulesAddress = await pluginInstance.lendingRules();
     expect(setLendingRulesAddress).to.equal(lendingRules.address);
+
+    const testTRTAddress = await pluginInstance.trtWallet();
+    console.log("testTRTAddress: ", testTRTAddress);
   }
 
   describe("LendingRules Treasury check", function () {

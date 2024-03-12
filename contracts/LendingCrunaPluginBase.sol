@@ -16,9 +16,13 @@ abstract contract LendingCrunaPluginBase is CrunaPluginBase, IERC721Receiver {
     return (interfaceId == type(IERC721Receiver).interfaceId || interfaceId == type(IERC165).interfaceId);
   }
 
-  function onERC721Received(address, address from, uint256 receivedTokenId, bytes memory) external virtual returns (bytes4) {
-    emit AssetReceived(_msgSender(), receivedTokenId, from);
-    return IERC721Receiver.onERC721Received.selector;
+  function onERC721Received(
+    address /* operator */,
+    address /* from */,
+    uint256 /* tokenId */,
+    bytes memory /* data */
+  ) external virtual override returns (bytes4) {
+    return this.onERC721Received.selector;
   }
 
   function _isProtected() internal view virtual override returns (bool) {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL3
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract LendingRules is Ownable {
   error TreasuryWalletZeroAddress();
@@ -16,10 +16,42 @@ contract LendingRules is Ownable {
   event SpecialDepositFeeSet(address indexed nftContract, uint256 depositFee);
   event TreasuryWalletUpdated(address newTreasuryWallet);
 
+  // Add setStableCoin function, which sets up which stable coins we accept.
+  // Check vaultFactory for that code and approach.
+
   constructor(address initialOwner, address treasuryWallet, uint256 defaultDepositFee) Ownable(initialOwner) {
     setTreasuryWallet(treasuryWallet);
     setDefaultDepositFee(defaultDepositFee);
   }
+
+  //  function setStableCoin(address stableCoin, bool active) external virtual override onlyOwner {
+  //    if (active) {
+  //      // We check if less than 6 because TetherUSD has 6 decimals
+  //      // It should revert if the stableCoin is not an ERC20
+  //      if (ERC20(stableCoin).decimals() < 6) {
+  //        revert UnsupportedStableCoin();
+  //      }
+  //      if (!stableCoins[stableCoin]) {
+  //        stableCoins[stableCoin] = true;
+  //        _stableCoins.push(stableCoin);
+  //        emit StableCoinSet(stableCoin, active);
+  //      }
+  //    } else if (stableCoins[stableCoin]) {
+  //      delete stableCoins[stableCoin];
+  //      // no risk of going out of cash because the factory will support just a couple of stable coins
+  //      for (uint256 i; i < _stableCoins.length; ) {
+  //        if (_stableCoins[i] == stableCoin) {
+  //          _stableCoins[i] = _stableCoins[_stableCoins.length - 1];
+  //          _stableCoins.pop();
+  //          break;
+  //        }
+  //        unchecked {
+  //          i++;
+  //        }
+  //      }
+  //      emit StableCoinSet(stableCoin, active);
+  //    }
+  //  }
 
   // Set the default deposit fee
   function setDefaultDepositFee(uint256 defaultDepositFee) public onlyOwner {
