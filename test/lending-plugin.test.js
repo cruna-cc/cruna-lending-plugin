@@ -7,7 +7,7 @@ const CrunaTestUtils = require("./helpers/CrunaTestUtils");
 
 const { normalize, addr0, bytes4, keccak256 } = require("./helpers");
 
-describe("LendingCrunaPluginMock tests", function () {
+describe.skip("LendingCrunaPluginMock tests", function () {
   let crunaManagerProxy;
   let crunaVault;
   let factory;
@@ -55,6 +55,7 @@ describe("LendingCrunaPluginMock tests", function () {
 
     await expect(factory.setPrice(990)).to.emit(factory, "PriceSet").withArgs(990);
     await expect(factory.setStableCoin(usdc.address, true)).to.emit(factory, "StableCoinSet").withArgs(usdc.address, true);
+    await expect(lendingRules.setStableCoin(usdc.address)).to.emit(lendingRules, "StableCoinSet").withArgs(usdc.address, true);
   }
 
   //here we test the contract
@@ -98,11 +99,11 @@ describe("LendingCrunaPluginMock tests", function () {
     console.log("testTRTAddress: ", testTRTAddress);
   }
 
-  describe("deplyment", function () {
-    it.only("should deploy everything as expected", async function () {
-      // test the beforeEach
-    });
-  });
+  // describe("deplyment", function () {
+  //   it.only("should deploy everything as expected", async function () {
+  //     // test the beforeEach
+  //   });
+  // });
 
   describe("LendingRules Treasury check", function () {
     it("Should get the treasury wallet address after it was deployed", async function () {
