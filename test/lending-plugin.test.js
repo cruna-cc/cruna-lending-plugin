@@ -7,7 +7,7 @@ const CrunaTestUtils = require("./helpers/CrunaTestUtils");
 
 const { normalize, addr0, bytes4, keccak256 } = require("./helpers");
 
-describe.skip("LendingCrunaPluginMock tests", function () {
+describe("LendingCrunaPluginMock tests", function () {
   let crunaManagerProxy;
   let crunaVault;
   let factory;
@@ -35,7 +35,7 @@ describe.skip("LendingCrunaPluginMock tests", function () {
     usdc = await deployUtils.deploy("USDCoin", deployer.address);
 
     // Deploy the LendingRules contract with an activation fee of 100
-    lendingRules = await deployUtils.deploy("LendingRules", deployer.address, treasuryWallet.address, 100);
+    lendingRules = await deployUtils.deploy("LendingRules", deployer.address, treasuryWallet.address, 100, 100);
 
     // Badges that Depositors can send to the Plugin Address
     mayGBadge = await deployUtils.deploy("MagicBadge", mayGDeployer.address);
@@ -97,6 +97,12 @@ describe.skip("LendingCrunaPluginMock tests", function () {
     const testTRTAddress = await pluginInstance.trtWallet();
     console.log("testTRTAddress: ", testTRTAddress);
   }
+
+  describe("deplyment", function () {
+    it.only("should deploy everything as expected", async function () {
+      // test the beforeEach
+    });
+  });
 
   describe("LendingRules Treasury check", function () {
     it("Should get the treasury wallet address after it was deployed", async function () {

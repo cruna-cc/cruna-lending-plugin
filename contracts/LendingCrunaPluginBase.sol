@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {CrunaPluginBase} from "@cruna/protocol/plugins/CrunaPluginBase.sol";
 
@@ -13,6 +12,10 @@ abstract contract LendingCrunaPluginBase is CrunaPluginBase, IERC721Receiver {
 
   function supportsInterface(bytes4 interfaceId) public pure virtual returns (bool) {
     return (interfaceId == type(IERC721Receiver).interfaceId || interfaceId == type(IERC165).interfaceId);
+  }
+
+  function isERC6551Account() external pure returns (bool) {
+    return false;
   }
 
   function onERC721Received(
