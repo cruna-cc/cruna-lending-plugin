@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL3
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract LendingRules is Ownable {
   error TreasuryWalletZeroAddress();
