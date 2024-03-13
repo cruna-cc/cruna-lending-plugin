@@ -21,13 +21,7 @@ abstract contract LendingCrunaPlugin is LendingCrunaPluginBase {
   error StableCoinNotSupported();
   error UnsupportedStableCoin();
 
-  event AssetReceived(
-    address indexed assetAddress,
-    uint256 indexed tokenId,
-    address depositor,
-    uint256 depositTime,
-    uint256 lendingPeriod
-  );
+  event AssetReceived(address indexed assetAddress, uint256 indexed tokenId, address depositor, uint256 lendingPeriod);
 
   struct DepositDetail {
     address depositor;
@@ -64,7 +58,7 @@ abstract contract LendingCrunaPlugin is LendingCrunaPluginBase {
     }
 
     // Retrieve both the deposit fee and the lending period for the asset.
-    (uint256 depositFee, uint256 lendingPeriod) = lendingRulesAddress.getDepositFee(assetAddress);
+    (uint256 depositFee, uint256 lendingPeriod) = lendingRulesAddress.getSpecialTerms(assetAddress);
 
     // Check if the stablecoin balance is sufficient for the deposit fee.
     if (IERC20(stableCoin).balanceOf(msg.sender) < depositFee) {
@@ -74,7 +68,7 @@ abstract contract LendingCrunaPlugin is LendingCrunaPluginBase {
     // Transfer the asset to the plugin contract and record the deposit.
     _depositedAssets[assetAddress][tokenId] = DepositDetail(msg.sender, block.timestamp + lendingPeriod);
     IERC721(assetAddress).safeTransferFrom(msg.sender, address(this), tokenId);
-    emit AssetReceived(assetAddress, tokenId, msg.sender, block.timestamp, lendingPeriod);
+    emit AssetReceived(assetAddress, tokenId, msg.sender, lendingPeriod);
 
     // If a deposit fee is set, transfer it to the treasury wallet.
     if (depositFee > 0) {

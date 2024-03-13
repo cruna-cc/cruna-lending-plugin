@@ -18,6 +18,8 @@ describe("LendingCrunaPluginMock tests", function () {
   let erc6551Registry, crunaRegistry, crunaGuardian;
   let pluginInstance;
 
+  const threeDaysInSeconds = 3 * 24 * 60 * 60;
+
   before(async function () {
     [deployer, mayGDeployer, azraDeployer, user1, user2, treasuryWallet, mayGDepositor, azraGamesDepositor, anotherDepositor] =
       await ethers.getSigners();
@@ -35,7 +37,6 @@ describe("LendingCrunaPluginMock tests", function () {
     usdc = await deployUtils.deploy("USDCoin", deployer.address);
 
     // Deploy the LendingRules contract with an activation fee of 100 and a 3-day minimum lending period
-    const threeDaysInSeconds = 3 * 24 * 60 * 60;
     lendingRules = await deployUtils.deploy("LendingRules", deployer.address, treasuryWallet.address, 100, threeDaysInSeconds);
     // Badges that Depositors can send to the Plugin Address
     mayGBadge = await deployUtils.deploy("MagicBadge", mayGDeployer.address);
@@ -46,11 +47,6 @@ describe("LendingCrunaPluginMock tests", function () {
     crunaLendingPluginImplentation = await deployUtils.deploy("LendingCrunaPluginMock");
     crunaLendingPluginProxy = await deployUtils.deploy("LendingCrunaPluginProxy", crunaLendingPluginImplentation.address);
     crunaLendingPluginProxy = await deployUtils.attach("LendingCrunaPluginMock", crunaLendingPluginProxy.address);
-
-    const implementationAddress = await crunaLendingPluginProxy.implementation(); // Adjust based on your proxy's method
-    console.log("implementationAddress", implementationAddress);
-    console.log("crunaLendingPluginImplentation.address", crunaLendingPluginImplentation.address);
-    // expect(implementationAddress).to.equal(crunaLendingPluginImplentation.address);
 
     await usdc.mint(deployer.address, normalize("10000"));
     await usdc.mint(mayGDepositor.address, normalize("1000"));
@@ -111,11 +107,11 @@ describe("LendingCrunaPluginMock tests", function () {
     expect(lendingRulesAddress).to.equal(lendingRules.address);
   }
 
-  describe("deployment", function () {
-    it.only("should deploy everything as expected", async function () {
-      // test the beforeEach
-    });
-  });
+  // describe("deployment", function () {
+  //   it.only("should deploy everything as expected", async function () {
+  //     // test the beforeEach
+  //   });
+  // });
 
   describe("LendingRules Treasury check", function () {
     it("Should get the treasury wallet address after it was deployed", async function () {
@@ -144,54 +140,53 @@ describe("LendingCrunaPluginMock tests", function () {
 
       await expect(pluginInstance.connect(mayGDepositor).depositAsset(mayGBadge.address, tokenId, usdc.address))
         .to.emit(pluginInstance, "AssetReceived")
-        .withArgs(mayGBadge.address, tokenId, mayGDepositor.address);
+        .withArgs(mayGBadge.address, tokenId, mayGDepositor.address, threeDaysInSeconds);
 
-      // expect(await mayGBadge.ownerOf(tokenId)).to.equal(pluginInstance.address);
-      //
-      // const treasuryWalletUSDCBalanceAfter = await usdc.balanceOf(treasuryWallet.address);
-      // expect(treasuryWalletUSDCBalanceAfter.sub(treasuryWalletUSDCBalanceBefore)).to.equal(depositFee);
-      //
-      // await expect(pluginInstance.connect(mayGDepositor).withdrawAsset(mayGBadge.address, tokenId))
-      //   .to.emit(pluginInstance, "AssetWithdrawn")
-      //   .withArgs(mayGBadge.address, tokenId, mayGDepositor.address);
-      //
-      // expect(await mayGBadge.ownerOf(tokenId)).to.equal(mayGDepositor.address);
+      expect(await mayGBadge.ownerOf(tokenId)).to.equal(pluginInstance.address);
+
+      const treasuryWalletUSDCBalanceAfter = await usdc.balanceOf(treasuryWallet.address);
+      expect(treasuryWalletUSDCBalanceAfter.sub(treasuryWalletUSDCBalanceBefore)).to.equal(depositFee);
+
+      await expect(pluginInstance.connect(mayGDepositor).withdrawAsset(mayGBadge.address, tokenId)).to.be.revertedWith(
+        "WithdrawalNotAllowedYet",
+      );
     });
   });
-  //
-  // describe("Testing depositing functionality for Azra with special deposit fee", async function () {
-  //   it("Set special deposit fee for AzraBadge, then deposit and withdraw an NFT", async function () {
-  //     await pluginAndSaveDepositorConfig();
-  //     // Set a special deposit fee for the AzraBadge contract
-  //     await lendingRules.setSpecialDepositFee(azraBadge.address, 50);
-  //     const tokenId = 2; // Assuming a different tokenId for uniqueness
-  //     await azraBadge.connect(azraDeployer).safeMint(azraGamesDepositor.address, tokenId);
-  //     expect(await azraBadge.ownerOf(tokenId)).to.equal(azraGamesDepositor.address);
-  //
-  //     await azraBadge.connect(azraGamesDepositor).approve(pluginInstance.address, tokenId);
-  //
-  //     // Retrieve the special deposit fee for the AzraBadge collection
-  //     // const depositFee = await lendingRules.getDepositFee(azraBadge.address);
-  //     const depositFee = await lendingRules.getDepositFee(azraBadge.address);
-  //     await usdc.connect(azraGamesDepositor).approve(pluginInstance.address, depositFee);
-  //
-  //     // Get the treasury balance before the deposit, for later.
-  //     const treasuryWalletUSDCBalanceBefore = await usdc.balanceOf(treasuryWallet.address);
-  //
-  //     await expect(pluginInstance.connect(azraGamesDepositor).depositAsset(azraBadge.address, tokenId, usdc.address))
-  //       .to.emit(pluginInstance, "AssetReceived")
-  //       .withArgs(azraBadge.address, tokenId, azraGamesDepositor.address);
-  //
-  //     expect(await azraBadge.ownerOf(tokenId)).to.equal(pluginInstance.address);
-  //
-  //     const treasuryWalletUSDCBalanceAfter = await usdc.balanceOf(treasuryWallet.address);
-  //     expect(treasuryWalletUSDCBalanceAfter.sub(treasuryWalletUSDCBalanceBefore)).to.equal(depositFee);
-  //
-  //     await expect(pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, tokenId))
-  //       .to.emit(pluginInstance, "AssetWithdrawn")
-  //       .withArgs(azraBadge.address, tokenId, azraGamesDepositor.address);
-  //
-  //     expect(await azraBadge.ownerOf(tokenId)).to.equal(azraGamesDepositor.address);
-  //   });
-  // });
+
+  describe("Testing depositing functionality for Azra with special deposit fee", async function () {
+    it("Set special deposit fee for AzraBadge, then deposit and withdraw an NFT", async function () {
+      await pluginAndSaveDepositorConfig();
+      // Set a special deposit fee for the AzraBadge contract
+      await lendingRules.setSpecialDepositFee(azraBadge.address, 50);
+      const tokenId = 2; // Assuming a different tokenId for uniqueness
+      await azraBadge.connect(azraDeployer).safeMint(azraGamesDepositor.address, tokenId);
+      expect(await azraBadge.ownerOf(tokenId)).to.equal(azraGamesDepositor.address);
+
+      await azraBadge.connect(azraGamesDepositor).approve(pluginInstance.address, tokenId);
+
+      // Retrieve the special deposit fee for the AzraBadge collection
+      // const depositFee = await lendingRules.getDepositFee(azraBadge.address);
+      const { depositFee } = await lendingRules.getSpecialTerms(azraBadge.address);
+
+      await usdc.connect(azraGamesDepositor).approve(pluginInstance.address, depositFee);
+
+      // Get the treasury balance before the deposit, for later.
+      const treasuryWalletUSDCBalanceBefore = await usdc.balanceOf(treasuryWallet.address);
+
+      await expect(pluginInstance.connect(azraGamesDepositor).depositAsset(azraBadge.address, tokenId, usdc.address))
+        .to.emit(pluginInstance, "AssetReceived")
+        .withArgs(azraBadge.address, tokenId, azraGamesDepositor.address, threeDaysInSeconds);
+
+      expect(await azraBadge.ownerOf(tokenId)).to.equal(pluginInstance.address);
+
+      const treasuryWalletUSDCBalanceAfter = await usdc.balanceOf(treasuryWallet.address);
+      expect(treasuryWalletUSDCBalanceAfter.sub(treasuryWalletUSDCBalanceBefore)).to.equal(depositFee);
+
+      await expect(pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, tokenId)).to.be.revertedWith(
+        "WithdrawalNotAllowedYet",
+      );
+
+      // expect(await azraBadge.ownerOf(tokenId)).to.equal(azraGamesDepositor.address);
+    });
+  });
 });
