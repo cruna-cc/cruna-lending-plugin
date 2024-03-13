@@ -13,4 +13,5 @@ interface ILendingRules {
   function setSpecialTerms(address nftContractAddress, uint256 depositFee, uint256 lendingPeriod) external;
 
   function setTreasuryWallet(address newTreasuryWallet) external;
+  function isStableCoinSupported(address stableCoin) external view returns (bool);
 }

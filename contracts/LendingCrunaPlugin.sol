@@ -18,6 +18,8 @@ abstract contract LendingCrunaPlugin is LendingCrunaPluginBase {
   error TransferNotCompleted(address assetAddress, uint256 tokenId);
   error LendingRulesNotSet();
   error WithdrawalNotAllowedYet(uint256 requestTime, uint256 requiredTime);
+  error StableCoinNotSupported();
+  error UnsupportedStableCoin();
 
   event AssetReceived(
     address indexed assetAddress,
@@ -37,28 +39,32 @@ abstract contract LendingCrunaPlugin is LendingCrunaPluginBase {
 
   mapping(address => mapping(uint256 => DepositDetail)) private _depositedAssets;
 
-  ILendingRules public lendingRules;
+  ILendingRules public lendingRulesAddress;
 
   function _nameId() internal view virtual override returns (bytes4) {
     return bytes4(keccak256("LendingCrunaPlugin"));
   }
 
-  function setLendingRules(address _lendingRulesAddress) external onlyTokenOwner {
+  function setLendingRulesAddress(address _lendingRulesAddress) external onlyTokenOwner {
     if (_lendingRulesAddress == address(0)) {
       revert InvalidLendingRulesAddress();
     }
-    lendingRules = ILendingRules(_lendingRulesAddress);
+    lendingRulesAddress = ILendingRules(_lendingRulesAddress);
   }
 
   // Function to handle the deposit of an ERC721 token
   function depositAsset(address assetAddress, uint256 tokenId, address stableCoin) public {
     // Ensure the lendingRules contract has been set.
-    if (address(lendingRules) == address(0)) {
+    if (address(lendingRulesAddress) == address(0)) {
       revert LendingRulesNotSet();
     }
 
+    if (!lendingRulesAddress.isStableCoinSupported(stableCoin)) {
+      revert UnsupportedStableCoin();
+    }
+
     // Retrieve both the deposit fee and the lending period for the asset.
-    (uint256 depositFee, uint256 lendingPeriod) = lendingRules.getDepositFee(assetAddress);
+    (uint256 depositFee, uint256 lendingPeriod) = lendingRulesAddress.getDepositFee(assetAddress);
 
     // Check if the stablecoin balance is sufficient for the deposit fee.
     if (IERC20(stableCoin).balanceOf(msg.sender) < depositFee) {
@@ -72,7 +78,7 @@ abstract contract LendingCrunaPlugin is LendingCrunaPluginBase {
 
     // If a deposit fee is set, transfer it to the treasury wallet.
     if (depositFee > 0) {
-      address treasuryWallet = lendingRules.getTreasuryWallet();
+      address treasuryWallet = lendingRulesAddress.getTreasuryWallet();
       IERC20(stableCoin).safeTransferFrom(msg.sender, treasuryWallet, depositFee);
     }
   }

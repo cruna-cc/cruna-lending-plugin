@@ -119,6 +119,10 @@ contract LendingRules is Ownable {
     return _stableCoins;
   }
 
+  function isStableCoinSupported(address stableCoin) external view returns (bool) {
+    return stableCoins[stableCoin];
+  }
+
   function getTreasuryWallet() public view returns (address) {
     return _treasuryWallet;
   }
