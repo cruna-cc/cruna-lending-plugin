@@ -7,7 +7,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ILendingRules} from "./ILendingRules.sol";
 import {LendingCrunaPluginBase} from "./LendingCrunaPluginBase.sol";
 
-abstract contract LendingCrunaPlugin is LendingCrunaPluginBase {
+contract LendingCrunaPlugin is LendingCrunaPluginBase {
   using SafeERC20 for IERC20;
   error InsufficientDepositFee(uint256 requiredFee, uint256 providedFee);
   error InsufficientFunds();

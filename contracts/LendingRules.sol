@@ -74,6 +74,10 @@ contract LendingRules is Ownable {
     emit SpecialTermsSet(nftContractAddress, depositFee, lendingPeriod);
   }
 
+  function getDefaultDepositFee() public view returns (uint256) {
+    return _defaultDepositFee;
+  }
+
   function getSpecialTerms(address nftContractAddress) public view returns (uint256 depositFee, uint256 lendingPeriod) {
     SpecialTerms memory terms = _specialTerms[nftContractAddress];
     depositFee = terms.depositFee != 0 ? terms.depositFee : _defaultDepositFee;
