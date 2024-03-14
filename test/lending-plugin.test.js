@@ -5,7 +5,7 @@ const deployUtils = new EthDeployUtils();
 
 const CrunaTestUtils = require("./helpers/CrunaTestUtils");
 
-const { normalize, addr0, bytes4, keccak256 } = require("./helpers");
+const { normalize, addr0, bytes4, keccak256, increaseBlockTimestampBy } = require("./helpers");
 
 describe("LendingCrunaPluginMock tests", function () {
   let crunaManagerProxy;
@@ -19,6 +19,7 @@ describe("LendingCrunaPluginMock tests", function () {
   let pluginInstance;
 
   const threeDaysInSeconds = 3 * 24 * 60 * 60;
+  const twoDaysInSeconds = 2 * 24 * 60 * 60;
 
   before(async function () {
     [deployer, mayGDeployer, azraDeployer, user1, user2, treasuryWallet, mayGDepositor, azraGamesDepositor, anotherDepositor] =
@@ -186,7 +187,17 @@ describe("LendingCrunaPluginMock tests", function () {
         "WithdrawalNotAllowedYet",
       );
 
-      // expect(await azraBadge.ownerOf(tokenId)).to.equal(azraGamesDepositor.address);
+      // Increase the block timestamp by 2 days and it should still fail
+      await increaseBlockTimestampBy(twoDaysInSeconds);
+      await expect(pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, tokenId)).to.be.revertedWith(
+        "WithdrawalNotAllowedYet",
+      );
+
+      // Increase the block timestamp by 2 more day and it should succeed
+      await increaseBlockTimestampBy(twoDaysInSeconds);
+      await expect(pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, tokenId))
+        .to.emit(pluginInstance, "AssetWithdrawn")
+        .withArgs(azraBadge.address, tokenId, azraGamesDepositor.address);
     });
   });
 });
