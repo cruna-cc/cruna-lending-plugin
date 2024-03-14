@@ -6,8 +6,6 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 import {CrunaPluginBase} from "@cruna/protocol/plugins/CrunaPluginBase.sol";
 
 abstract contract LendingCrunaPluginBase is CrunaPluginBase, IERC721Receiver {
-  event AssetWithdrawn(address indexed assetAddress, uint256 indexed tokenId, address withdrawer);
-
   error InvalidValidity();
 
   function supportsInterface(bytes4 interfaceId) public pure virtual returns (bool) {

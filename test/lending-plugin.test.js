@@ -11,7 +11,7 @@ describe("LendingCrunaPluginMock tests", function () {
   let crunaManagerProxy;
   let crunaVault;
   let factory;
-  let usdc;
+  let usdc, usdt;
   let deployer, mayGDeployer, azraDeployer, user1, user2, mayGDepositor, azraGamesDepositor, anotherDepositor;
   let mayGBadge, azraBadge, anotherProjectBadge, lendingRules, treasuryWallet;
   let crunaLendingPluginImplentation, crunaLendingPluginProxy;
@@ -36,6 +36,7 @@ describe("LendingCrunaPluginMock tests", function () {
 
     // stablecoin mock
     usdc = await deployUtils.deploy("USDCoin", deployer.address);
+    usdt = await deployUtils.deploy("TetherUSD", deployer.address);
 
     // Deploy the LendingRules contract with an activation fee of 100 and a 3-day minimum lending period
     lendingRules = await deployUtils.deploy("LendingRules", deployer.address, treasuryWallet.address, 100, threeDaysInSeconds);
@@ -174,6 +175,12 @@ describe("LendingCrunaPluginMock tests", function () {
       // Get the treasury balance before the deposit, for later.
       const treasuryWalletUSDCBalanceBefore = await usdc.balanceOf(treasuryWallet.address);
 
+      // Try and deposit using usdt, which is not an approved stablecoin
+      await expect(
+        pluginInstance.connect(azraGamesDepositor).depositAsset(azraBadge.address, tokenId, usdt.address),
+      ).to.be.revertedWith("UnsupportedStableCoin");
+
+      // Now deposit with an approved stablecoin, which is usdc
       await expect(pluginInstance.connect(azraGamesDepositor).depositAsset(azraBadge.address, tokenId, usdc.address))
         .to.emit(pluginInstance, "AssetReceived")
         .withArgs(azraBadge.address, tokenId, azraGamesDepositor.address, threeDaysInSeconds);
@@ -196,8 +203,8 @@ describe("LendingCrunaPluginMock tests", function () {
       // Increase the block timestamp by 2 more day and it should succeed
       await increaseBlockTimestampBy(twoDaysInSeconds);
       await expect(pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, tokenId))
-        .to.emit(pluginInstance, "AssetWithdrawn")
-        .withArgs(azraBadge.address, tokenId, azraGamesDepositor.address);
+        .to.emit(azraBadge, "Transfer")
+        .withArgs(pluginInstance.address, azraGamesDepositor.address, tokenId);
     });
   });
 });

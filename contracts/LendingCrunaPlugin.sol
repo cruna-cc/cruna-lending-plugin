@@ -95,7 +95,6 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
 
     // Transfer the asset back to the depositor.
     IERC721(assetAddress).safeTransferFrom(address(this), msg.sender, tokenId);
-    emit AssetWithdrawn(assetAddress, tokenId, msg.sender);
   }
 
   uint256[50] private __gap; // Reserved space for future upgrades
