@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL3
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.20;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ILendingRules} from "./ILendingRules.sol";
 import {LendingCrunaPluginBase} from "./LendingCrunaPluginBase.sol";
+import {ILendingCrunaPlugin} from "./ILendingCrunaPlugin.sol";
 
 /*
  * @title Lending Cruna Plugin
@@ -33,8 +34,16 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
   error WithdrawalNotAllowedYet(uint256 requestTime, uint256 requiredTime);
   error StableCoinNotSupported();
   error UnsupportedStableCoin();
+  error InvalidSourcePlugin();
+  error AssetAlreadyDeposited();
 
   event AssetReceived(address indexed assetAddress, uint256 indexed tokenId, address depositor, uint256 lendingPeriod);
+  event AssetReceivedFromPlugin(
+    address indexed assetAddress,
+    uint256 indexed tokenId,
+    address indexed previousDepositor,
+    uint256 lendingPeriod
+  );
 
   struct DepositDetail {
     address depositor;
@@ -125,6 +134,24 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
 
     // Transfer the asset back to the depositor.
     IERC721(assetAddress).safeTransferFrom(address(this), to, tokenId);
+  }
+
+  /**
+   * @notice Accepts an NFT asset transferred from another plugin and re-deposits it under new terms.
+   * @dev Verifies the legitimacy of the source plugin and then reuses depositAsset to deposit the asset.
+   * @param assetAddress The address of the NFT contract.
+   * @param tokenId The ID of the NFT being deposited.
+   * @param fromPlugin The address of the plugin from which the asset is transferred.
+   * @param stableCoin The address of the stablecoin used for the deposit fee in the new plugin.
+   */
+  function depositFromPlugin(address assetAddress, uint256 tokenId, address fromPlugin, address stableCoin) external {
+    // Verify the fromPlugin is a legitimate LendingCrunaPlugin by checking if it supports the ILendingCrunaPlugin interface
+    if (!ILendingCrunaPlugin(fromPlugin).supportsInterface(type(ILendingCrunaPlugin).interfaceId)) {
+      revert InvalidSourcePlugin();
+    }
+
+    // Call depositAsset to handle the actual deposit process under the new plugin's terms
+    depositAsset(assetAddress, tokenId, stableCoin);
   }
 
   uint256[50] private __gap; // Reserved space for future upgrades

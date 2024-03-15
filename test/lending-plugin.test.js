@@ -86,14 +86,14 @@ describe("LendingCrunaPluginMock tests", function () {
     return nextTokenId;
   }
 
-  async function pluginAndSaveDepositorConfig() {
-    let tokenId = await buyNFT(usdc, 1, user1);
+  async function pluginAndSaveDepositorConfig(user) {
+    let tokenId = await buyNFT(usdc, 1, user);
     const managerAddress = await crunaVault.managerOf(tokenId);
     const manager = await ethers.getContractAt("CrunaManager", managerAddress);
 
     await expect(
       manager
-        .connect(user1)
+        .connect(user)
         .plug("LendingCrunaPluginMock", crunaLendingPluginProxy.address, false, false, "0x00000000", 0, 0, 0),
     ).to.emit(manager, "PluginStatusChange");
 
@@ -101,7 +101,7 @@ describe("LendingCrunaPluginMock tests", function () {
     const pluginAddress = await manager.pluginAddress(nameId, "0x00000000");
     pluginInstance = await ethers.getContractAt("LendingCrunaPluginMock", pluginAddress);
 
-    await pluginInstance.connect(user1).setLendingRulesAddress(lendingRules.address);
+    await pluginInstance.connect(user).setLendingRulesAddress(lendingRules.address);
     const lendingRulesAddressSet = await pluginInstance.lendingRulesAddress();
     expect(lendingRulesAddressSet).to.equal(lendingRules.address);
 
@@ -124,7 +124,7 @@ describe("LendingCrunaPluginMock tests", function () {
 
   describe("Testing depositing functionality", async function () {
     it("Buy and Plug then let MayG deposit an NFT", async function () {
-      await pluginAndSaveDepositorConfig();
+      await pluginAndSaveDepositorConfig(user1);
 
       const tokenId = 1;
       await mayGBadge.connect(mayGDeployer).safeMint(mayGDepositor.address, tokenId);
@@ -158,7 +158,7 @@ describe("LendingCrunaPluginMock tests", function () {
 
   describe("Testing depositing functionality for Azra with special deposit fee", async function () {
     it("Set special deposit fee for AzraBadge, then deposit and withdraw an NFT", async function () {
-      await pluginAndSaveDepositorConfig();
+      await pluginAndSaveDepositorConfig(user2);
       // Set a special deposit fee for the AzraBadge contract
       await lendingRules.setSpecialDepositFee(azraBadge.address, 50);
       const tokenId = 2; // Assuming a different tokenId for uniqueness
