@@ -37,4 +37,6 @@ const Helpers = {
   },
 };
 
+Helpers.nickSFactoryAddress = `0x4e59b44847b379578588920ca78fbf26c0b4956c`;
+
 module.exports = Helpers;

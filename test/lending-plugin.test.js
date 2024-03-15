@@ -6,6 +6,7 @@ const deployUtils = new EthDeployUtils();
 const CrunaTestUtils = require("./helpers/CrunaTestUtils");
 
 const { normalize, addr0, bytes4, keccak256, increaseBlockTimestampBy } = require("./helpers");
+const { zeroAddress } = require("ethereumjs-util");
 
 describe("LendingCrunaPluginMock tests", function () {
   let crunaManagerProxy;
@@ -149,9 +150,9 @@ describe("LendingCrunaPluginMock tests", function () {
       const treasuryWalletUSDCBalanceAfter = await usdc.balanceOf(treasuryWallet.address);
       expect(treasuryWalletUSDCBalanceAfter.sub(treasuryWalletUSDCBalanceBefore)).to.equal(depositFee);
 
-      await expect(pluginInstance.connect(mayGDepositor).withdrawAsset(mayGBadge.address, tokenId)).to.be.revertedWith(
-        "WithdrawalNotAllowedYet",
-      );
+      await expect(
+        pluginInstance.connect(mayGDepositor).withdrawAsset(mayGBadge.address, tokenId, zeroAddress()),
+      ).to.be.revertedWith("WithdrawalNotAllowedYet");
     });
   });
 
@@ -190,19 +191,19 @@ describe("LendingCrunaPluginMock tests", function () {
       const treasuryWalletUSDCBalanceAfter = await usdc.balanceOf(treasuryWallet.address);
       expect(treasuryWalletUSDCBalanceAfter.sub(treasuryWalletUSDCBalanceBefore)).to.equal(depositFee);
 
-      await expect(pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, tokenId)).to.be.revertedWith(
-        "WithdrawalNotAllowedYet",
-      );
+      await expect(
+        pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, tokenId, zeroAddress()),
+      ).to.be.revertedWith("WithdrawalNotAllowedYet");
 
       // Increase the block timestamp by 2 days and it should still fail
       await increaseBlockTimestampBy(twoDaysInSeconds);
-      await expect(pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, tokenId)).to.be.revertedWith(
-        "WithdrawalNotAllowedYet",
-      );
+      await expect(
+        pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, tokenId, zeroAddress()),
+      ).to.be.revertedWith("WithdrawalNotAllowedYet");
 
       // Increase the block timestamp by 2 more day and it should succeed
       await increaseBlockTimestampBy(twoDaysInSeconds);
-      await expect(pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, tokenId))
+      await expect(pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, tokenId, zeroAddress()))
         .to.emit(azraBadge, "Transfer")
         .withArgs(pluginInstance.address, azraGamesDepositor.address, tokenId);
     });
