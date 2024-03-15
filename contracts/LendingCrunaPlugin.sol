@@ -8,21 +8,20 @@ import {ILendingRules} from "./ILendingRules.sol";
 import {LendingCrunaPluginBase} from "./LendingCrunaPluginBase.sol";
 import {ILendingCrunaPlugin} from "./ILendingCrunaPlugin.sol";
 
-/*
- * @title Lending Cruna Plugin
- * @notice This contract is a fundamental component of a decentralized finance (DeFi) lending platform,
- * designed specifically for handling NFT assets. It enables users to deposit NFTs as collateral, unlocking
- * financial utility and access to lending services for NFT holders. The plugin interfaces with a set of lending
- * rules that define the terms under which NFTs can be lent, including but not limited to deposit fees and
- * lending periods.
- *
- * Users can deposit their NFT assets into the smart contract, which then securely manages the custody of these
- * assets, collects any applicable fees, and ensures compliance with the established lending rules. This system
- * democratizes the lending and borrowing process within the NFT domain, fostering enhanced liquidity and financial
- * innovation by allowing NFT owners to leverage their assets in new and impactful ways.
- */
 contract LendingCrunaPlugin is LendingCrunaPluginBase {
   using SafeERC20 for IERC20;
+
+  modifier canWithdraw(address assetAddress, uint256 tokenId) {
+    DepositDetail storage depositDetail = _depositedAssets[assetAddress][tokenId];
+    if (depositDetail.depositor != msg.sender) {
+      revert NotDepositor(msg.sender, depositDetail.depositor);
+    }
+    if (block.timestamp < depositDetail.withdrawableAfter) {
+      revert WithdrawalNotAllowedYet(block.timestamp, depositDetail.withdrawableAfter);
+    }
+    _;
+  }
+
   error InsufficientDepositFee(uint256 requiredFee, uint256 providedFee);
   error InsufficientFunds();
   error TransferFailed();
@@ -36,7 +35,14 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
   error UnsupportedStableCoin();
   error InvalidSourcePlugin();
   error AssetAlreadyDeposited();
+  error InvalidTargetPlugin();
 
+  event AssetTransferredToPlugin(
+    address indexed assetAddress,
+    uint256 indexed tokenId,
+    address indexed fromDepositor,
+    address toPlugin
+  );
   event AssetReceived(address indexed assetAddress, uint256 indexed tokenId, address depositor, uint256 lendingPeriod);
   event AssetReceivedFromPlugin(
     address indexed assetAddress,
@@ -69,13 +75,6 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
     lendingRulesAddress = ILendingRules(_lendingRulesAddress);
   }
 
-  /*
-   * @notice Function to deposit an NFT asset as collateral for a loan.
-   * @dev Checks for stablecoin support and sufficient deposit fee before proceeding.
-   * @param assetAddress The address of the NFT contract.
-   * @param tokenId The ID of the NFT token being deposited.
-   * @param stableCoin The address of the stablecoin used for the deposit fee.
-   */
   function depositAsset(address assetAddress, uint256 tokenId, address stableCoin) public {
     // Ensure the lendingRules contract has been set.
     if (address(lendingRulesAddress) == address(0)) {
@@ -106,26 +105,17 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
     }
   }
 
-  /*
-   * @notice Function to withdraw an NFT asset from the plugin contract.
-   * @dev Validates the depositor and checks the withdrawable timestamp before proceeding.
-   * @param assetAddress The address of the NFT contract.
-   * @param tokenId The ID of the NFT token being withdrawn.
-   * @param withdrawTo The address to withdraw the asset to, or the depositor's address if zero.
-   */
-  function withdrawAsset(address assetAddress, uint256 tokenId, address withdrawTo) public {
-    DepositDetail memory depositDetail = _depositedAssets[assetAddress][tokenId];
-
-    // Ensure only the depositor can initiate the withdrawal.
-    if (depositDetail.depositor != msg.sender) {
-      revert NotDepositor(msg.sender, depositDetail.depositor);
+  function depositFromPlugin(address assetAddress, uint256 tokenId, address fromPlugin, address stableCoin) external {
+    // Verify the fromPlugin is a legitimate LendingCrunaPlugin by checking if it supports the ILendingCrunaPlugin interface
+    if (!ILendingCrunaPlugin(fromPlugin).supportsInterface(type(ILendingCrunaPlugin).interfaceId)) {
+      revert InvalidSourcePlugin();
     }
 
-    // Check if the current time is after the allowed withdrawal time.
-    if (block.timestamp < depositDetail.withdrawableAfter) {
-      revert WithdrawalNotAllowedYet(block.timestamp, depositDetail.withdrawableAfter);
-    }
+    // Call depositAsset to handle the actual deposit process under the new plugin's terms
+    depositAsset(assetAddress, tokenId, stableCoin);
+  }
 
+  function withdrawAsset(address assetAddress, uint256 tokenId, address withdrawTo) public canWithdraw(assetAddress, tokenId) {
     // Remove the asset from the deposited assets mapping.
     delete _depositedAssets[assetAddress][tokenId];
 
@@ -136,22 +126,28 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
     IERC721(assetAddress).safeTransferFrom(address(this), to, tokenId);
   }
 
-  /**
-   * @notice Accepts an NFT asset transferred from another plugin and re-deposits it under new terms.
-   * @dev Verifies the legitimacy of the source plugin and then reuses depositAsset to deposit the asset.
-   * @param assetAddress The address of the NFT contract.
-   * @param tokenId The ID of the NFT being deposited.
-   * @param fromPlugin The address of the plugin from which the asset is transferred.
-   * @param stableCoin The address of the stablecoin used for the deposit fee in the new plugin.
-   */
-  function depositFromPlugin(address assetAddress, uint256 tokenId, address fromPlugin, address stableCoin) external {
-    // Verify the fromPlugin is a legitimate LendingCrunaPlugin by checking if it supports the ILendingCrunaPlugin interface
-    if (!ILendingCrunaPlugin(fromPlugin).supportsInterface(type(ILendingCrunaPlugin).interfaceId)) {
-      revert InvalidSourcePlugin();
+  function withdrawAssetToPlugin(
+    address assetAddress,
+    uint256 tokenId,
+    address toPlugin,
+    address stableCoin
+  ) public canWithdraw(assetAddress, tokenId) {
+    // Ensure the target plugin supports the ILendingCrunaPlugin interface.
+    if (!ILendingCrunaPlugin(toPlugin).supportsInterface(type(ILendingCrunaPlugin).interfaceId)) {
+      revert InvalidTargetPlugin();
     }
 
-    // Call depositAsset to handle the actual deposit process under the new plugin's terms
-    depositAsset(assetAddress, tokenId, stableCoin);
+    // Transfer the NFT to the target plugin.
+    IERC721(assetAddress).safeTransferFrom(address(this), toPlugin, tokenId);
+
+    // Call `depositFromPlugin` on the target plugin to deposit the NFT under new terms.
+    ILendingCrunaPlugin(toPlugin).depositFromPlugin(assetAddress, tokenId, address(this), stableCoin);
+
+    // Remove the asset from the deposited assets mapping after successful transfer and deposit.
+    delete _depositedAssets[assetAddress][tokenId];
+
+    // Emit an event for successful transfer and deposit to another plugin.
+    emit AssetTransferredToPlugin(assetAddress, tokenId, msg.sender, toPlugin);
   }
 
   uint256[50] private __gap; // Reserved space for future upgrades
