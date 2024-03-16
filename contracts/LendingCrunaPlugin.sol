@@ -24,20 +24,15 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
     _;
   }
 
-  error InsufficientDepositFee(uint256 requiredFee, uint256 providedFee);
   error InsufficientFunds();
   error TransferFailed();
   error InvalidLendingRulesAddress();
   error NotDepositor(address caller, address expected);
-  error TransferToTreasuryFailed();
   error TransferNotCompleted(address assetAddress, uint256 tokenId);
   error LendingRulesNotSet();
   error WithdrawalNotAllowedYet(uint256 requestTime, uint256 requiredTime);
-  error StableCoinNotSupported();
   error UnsupportedStableCoin();
   error InvalidSourcePlugin();
-  error AssetAlreadyDeposited();
-  error InvalidTargetPlugin();
   error PluginNotDeployed();
   error TokenNotDeposited(address tokenAddress, uint256 tokenId);
 
@@ -48,12 +43,6 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
     address toPlugin
   );
   event AssetReceived(address indexed assetAddress, uint256 indexed tokenId, address depositor, uint256 lendingPeriod);
-  event AssetReceivedFromPlugin(
-    address indexed assetAddress,
-    uint256 indexed tokenId,
-    address indexed previousDepositor,
-    uint256 lendingPeriod
-  );
 
   struct DepositDetail {
     address depositor;
