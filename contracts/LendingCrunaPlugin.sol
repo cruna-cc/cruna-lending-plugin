@@ -6,9 +6,11 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ILendingRules} from "./ILendingRules.sol";
 import {LendingCrunaPluginBase} from "./LendingCrunaPluginBase.sol";
-import {ILendingCrunaPlugin} from "./ILendingCrunaPlugin.sol";
+import {ERC6551AccountLib} from "erc6551/lib/ERC6551AccountLib.sol";
+import {Canonical} from "@cruna/protocol/libs/Canonical.sol";
+import {IERC7531} from "./IERC7531.sol";
 
-contract LendingCrunaPlugin is LendingCrunaPluginBase {
+contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
   using SafeERC20 for IERC20;
 
   modifier canWithdraw(address assetAddress, uint256 tokenId) {
@@ -36,6 +38,8 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
   error InvalidSourcePlugin();
   error AssetAlreadyDeposited();
   error InvalidTargetPlugin();
+  error PluginNotDeployed();
+  error TokenNotDeposited(address tokenAddress, uint256 tokenId);
 
   event AssetTransferredToPlugin(
     address indexed assetAddress,
@@ -62,6 +66,17 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
 
   function _nameId() internal view virtual override returns (bytes4) {
     return bytes4(keccak256("LendingCrunaPlugin"));
+  }
+
+  function rightsHolderOf(address tokenAddress, uint256 tokenId, bytes4 /* rights */) external view override returns (address) {
+    DepositDetail memory depositDetail = _depositedAssets[tokenAddress][tokenId];
+
+    if (depositDetail.depositor == address(0)) {
+      revert TokenNotDeposited(tokenAddress, tokenId);
+    }
+
+    // Assuming the depositor holds all rights for simplicity; adjust as needed.
+    return depositDetail.depositor;
   }
 
   /*
@@ -105,9 +120,9 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
     }
   }
 
-  function depositFromPlugin(address assetAddress, uint256 tokenId, address fromPlugin, address stableCoin) external {
-    // Verify the fromPlugin is a legitimate LendingCrunaPlugin by checking if it supports the ILendingCrunaPlugin interface
-    if (!ILendingCrunaPlugin(fromPlugin).supportsInterface(type(ILendingCrunaPlugin).interfaceId)) {
+  function depositFromPlugin(address assetAddress, uint256 tokenId, uint256 fromVaultTokenId, address stableCoin) external {
+    address fromPlugin = _calculatePluginAddress(fromVaultTokenId);
+    if (fromPlugin != msg.sender) {
       revert InvalidSourcePlugin();
     }
 
@@ -126,28 +141,50 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase {
     IERC721(assetAddress).safeTransferFrom(address(this), to, tokenId);
   }
 
+  function _calculatePluginAddress(uint256 tokenId) internal view returns (address) {
+    return
+      ERC6551AccountLib.computeAddress(
+        address(Canonical.crunaRegistry()),
+        ERC6551AccountLib.implementation(),
+        0x00,
+        block.chainid,
+        tokenAddress(),
+        tokenId
+      );
+  }
+
+  //
+  // maybe transferAssetToPlugin
   function withdrawAssetToPlugin(
     address assetAddress,
-    uint256 tokenId,
-    address toPlugin,
+    uint256 tokenId_,
+    // send Vault tokenId and then we can go get the address from the token
+    uint256 toVaultTokenId,
     address stableCoin
-  ) public canWithdraw(assetAddress, tokenId) {
-    // Ensure the target plugin supports the ILendingCrunaPlugin interface.
-    if (!ILendingCrunaPlugin(toPlugin).supportsInterface(type(ILendingCrunaPlugin).interfaceId)) {
-      revert InvalidTargetPlugin();
+  ) public canWithdraw(assetAddress, tokenId_) {
+    // Get the plugin address from the vault tokenId
+    address toPlugin = _calculatePluginAddress(toVaultTokenId);
+
+    uint256 size;
+
+    // solhint-disable-next-line no-inline-assembly
+    assembly {
+      size := extcodesize(toPlugin)
     }
 
+    if (size == 0) revert PluginNotDeployed();
+
     // Transfer the NFT to the target plugin.
-    IERC721(assetAddress).safeTransferFrom(address(this), toPlugin, tokenId);
+    IERC721(assetAddress).safeTransferFrom(address(this), toPlugin, tokenId_);
 
     // Call `depositFromPlugin` on the target plugin to deposit the NFT under new terms.
-    ILendingCrunaPlugin(toPlugin).depositFromPlugin(assetAddress, tokenId, address(this), stableCoin);
+    LendingCrunaPlugin(toPlugin).depositFromPlugin(assetAddress, tokenId_, tokenId(), stableCoin);
 
     // Remove the asset from the deposited assets mapping after successful transfer and deposit.
-    delete _depositedAssets[assetAddress][tokenId];
+    delete _depositedAssets[assetAddress][tokenId_];
 
     // Emit an event for successful transfer and deposit to another plugin.
-    emit AssetTransferredToPlugin(assetAddress, tokenId, msg.sender, toPlugin);
+    emit AssetTransferredToPlugin(assetAddress, tokenId_, msg.sender, toPlugin);
   }
 
   uint256[50] private __gap; // Reserved space for future upgrades

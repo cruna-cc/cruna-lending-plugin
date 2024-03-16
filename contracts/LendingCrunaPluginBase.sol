@@ -1,20 +1,11 @@
 // SPDX-License-Identifier: GPL3
 pragma solidity ^0.8.20;
 
-import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {CrunaPluginBase} from "@cruna/protocol/plugins/CrunaPluginBase.sol";
-import {ILendingCrunaPlugin} from "./ILendingCrunaPlugin.sol";
 
-abstract contract LendingCrunaPluginBase is CrunaPluginBase, IERC721Receiver, ILendingCrunaPlugin {
+abstract contract LendingCrunaPluginBase is CrunaPluginBase, IERC721Receiver {
   error InvalidValidity();
-
-  function supportsInterface(bytes4 interfaceId) public pure virtual returns (bool) {
-    return
-      interfaceId == type(ILendingCrunaPlugin).interfaceId ||
-      interfaceId == type(IERC721Receiver).interfaceId ||
-      interfaceId == type(IERC165).interfaceId;
-  }
 
   function isERC6551Account() external pure returns (bool) {
     return false;
