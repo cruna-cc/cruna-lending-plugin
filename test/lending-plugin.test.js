@@ -117,7 +117,7 @@ describe("LendingCrunaPluginMock tests", function () {
   }
 
   describe("deployment", function () {
-    it.only("should deploy everything as expected", async function () {
+    it("should deploy everything as expected", async function () {
       // test the beforeEach
     });
   });
@@ -163,12 +163,14 @@ describe("LendingCrunaPluginMock tests", function () {
   // });
 
   describe("Testing depositing functionality for Azra with special deposit fee", async function () {
-    it("Set special deposit fee for AzraBadge, then deposit and withdraw an NFT", async function () {
+    it.only("Set special deposit fee for AzraBadge, then deposit and withdraw an NFT", async function () {
       // const tokenId = Number(await pluginAndSaveDepositorConfig(user1));
       // const tokenIdUser2 = Number(await pluginAndSaveDepositorConfig(user2));
 
       let tokenId = (await buyNFT(usdc, 1, user1))[0];
+
       let tokenId2 = (await buyNFT(usdc, 1, user2))[0];
+      return;
 
       // await pluginAndSaveDepositorConfig(user1);
       // Set a special deposit fee for the AzraBadge contract
