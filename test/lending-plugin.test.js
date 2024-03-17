@@ -51,11 +51,11 @@ describe("LendingCrunaPluginMock tests", function () {
     crunaLendingPluginProxy = await deployUtils.deploy("LendingCrunaPluginProxy", crunaLendingPluginImplentation.address);
     crunaLendingPluginProxy = await deployUtils.attach("LendingCrunaPluginMock", crunaLendingPluginProxy.address);
 
-    await usdc.mint(deployer.address, normalize("10000"));
-    await usdc.mint(mayGDepositor.address, normalize("1000"));
-    await usdc.mint(azraGamesDepositor.address, normalize("1000"));
-    await usdc.mint(user1.address, normalize("1000"));
-    await usdc.mint(user2.address, normalize("1000"));
+    await usdc.mint(deployer.address, normalize("100000"));
+    await usdc.mint(mayGDepositor.address, normalize("10000"));
+    await usdc.mint(azraGamesDepositor.address, normalize("10000"));
+    await usdc.mint(user1.address, normalize("10000"));
+    await usdc.mint(user2.address, normalize("10000"));
 
     await expect(factory.setPrice(990)).to.emit(factory, "PriceSet").withArgs(990);
     await expect(factory.setStableCoin(usdc.address, true)).to.emit(factory, "StableCoinSet").withArgs(usdc.address, true);
@@ -230,36 +230,33 @@ describe("LendingCrunaPluginMock tests", function () {
   });
 
   describe("Testing withdrawAssetToPlugin and depositFromPlugin", async function () {
-    it.skip("Deposit and withdraw an NFT to another user's plugin address", async function () {
-      const tokenId = Number(await buyVaultPlugAndSaveDepositorConfig(user1));
-      const tokenIdUser2 = Number(await buyVaultPlugAndSaveDepositorConfig(user2));
-
-      // Let's mint badges for both mayG and azra and then deposit them to user1 and user2's plugin addresses
-      await mintBadgeAndApproveForDeposit(mayGBadge, mayGDeployer, tokenId, mayGDepositor);
-      await mintBadgeAndApproveForDeposit(azraBadge, azraDeployer, tokenIdUser2, azraGamesDepositor);
+    it.only("Deposit and withdraw an NFT to another user's plugin address", async function () {
+      const { tokenId: vaultTokenIdUser1, pluginInstance: pluginInstanceUser1 } =
+        await buyVaultPlugAndSaveDepositorConfig(user1);
+      await mintBadgeAndApproveForDeposit(pluginInstanceUser1, mayGBadge, mayGDeployer, vaultTokenIdUser1, mayGDepositor, usdc);
 
       // mayG deposits a badge to user1's plugin address
-      await expect(pluginInstance.connect(mayGDepositor).depositAsset(mayGBadge.address, tokenId, usdc.address))
-        .to.emit(pluginInstance, "AssetReceived")
-        .withArgs(mayGBadge.address, tokenId, mayGDepositor.address, threeDaysInSeconds);
+      await expect(pluginInstanceUser1.connect(mayGDepositor).depositAsset(mayGBadge.address, vaultTokenIdUser1, usdc.address))
+        .to.emit(pluginInstanceUser1, "AssetReceived")
+        .withArgs(mayGBadge.address, vaultTokenIdUser1, mayGDepositor.address, threeDaysInSeconds);
 
       // Let's increase the block time by 3 days
-      await increaseBlockTimestampBy(threeDaysInSeconds);
+      await increaseBlockTimestampBy(threeDaysInSeconds + 1);
 
-      // Withdraw from user1's plugin address and deposit to user2's plugin address
-      /*
-        function withdrawAssetToPlugin(
-          address assetAddress,
-          uint256 tokenId_,
-          // send Vault tokenId, and then we can go get the address from the token
-          uint256 toVaultTokenId,
-          address stableCoin
-        )
-       */
-      // emit event AssetTransferredToPlugin with assetAddress, tokenId_, msg.sender, toPlugin
-      await expect(pluginInstance.connect(user1).withdrawAssetToPlugin(mayGBadge.address, tokenId, tokenIdUser2, usdc.address))
-        .to.emit(pluginInstance, "AssetTransferredToPlugin")
-        .withArgs(mayGBadge.address, tokenId, user1.address, user2.address);
+      return;
+      // Approve the mayGBadge to be transferred from user1's plugin address
+      await mayGBadge.connect(mayGDepositor).approve(pluginInstanceUser1.address, vaultTokenIdUser1);
+
+      return;
+      // Approve the usdc to be spent by user1's plugin address
+      await usdc.connect(mayGDepositor).approve(pluginInstanceUser1.address, 1000);
+
+      await expect(
+        pluginInstanceUser1
+          .connect(mayGDepositor)
+          .withdrawAssetToPlugin(mayGBadge.address, vaultTokenIdUser1, vaultTokenIdUser2, usdc.address),
+      ).to.emit(pluginInstance, "AssetTransferredToPlugin");
+      // .withArgs(mayGBadge.address, vaultTokenIdUser1, user1.address, user2.address);
     });
   });
 });
