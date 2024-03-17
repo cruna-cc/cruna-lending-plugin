@@ -11,8 +11,8 @@ dependencies:
 
 devDependencies:
   '@cruna/protocol':
-    specifier: 0.2.6
-    version: 0.2.6
+    specifier: 0.2.8
+    version: 0.2.8
   '@ethersproject/contracts':
     specifier: ^5.7.0
     version: 5.7.0
@@ -187,8 +187,8 @@ packages:
     dev: true
     optional: true
 
-  /@cruna/protocol@0.2.6:
-    resolution: {integrity: sha512-5xCyJlOSOhYbu5zu0Ts8eqKLYLzvayU8E9ytO0NqSa6LHzGqDLFKtnsX9tEjnEFHIh5bc77ptCva4o+Pf//lLw==}
+  /@cruna/protocol@0.2.8:
+    resolution: {integrity: sha512-EYNYqeG4EcPBqaoNrXGrYr5d4xTAW4V+E2iCPQVPCwJpDmIwKA/8bKOYJaoLeWVnr6Cx8dqUZ8kCEsEWiXiQNw==}
     dependencies:
       '@openzeppelin/contracts': 5.0.2
       erc6551: 0.3.1
@@ -3995,6 +3995,7 @@ packages:
       is-hex-prefixed: 1.0.0
       strip-hex-prefix: 1.0.0
     dev: true
+    bundledDependencies: false
 
   /eventemitter3@4.0.4:
     resolution: {integrity: sha512-rlaVLnVxtxvoyLsQQFBx53YmXHDxRIzzTLbdfxqi4yocpSjAxXwkU0cScM5JgSKMqEhrZpnvQ2D9gjylR0AimQ==}

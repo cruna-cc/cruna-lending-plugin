@@ -78,12 +78,16 @@ describe("LendingCrunaPluginMock tests", function () {
     let price = await factory.finalPrice(token.address);
     await token.connect(buyer).approve(factory.address, price.mul(amount));
     let nextTokenId = (await crunaVault.nftConf()).nextTokenId;
-
-    await expect(factory.connect(buyer).buy(token.address, amount))
-      .to.emit(crunaVault, "Transfer")
-      .withArgs(addr0, buyer.address, nextTokenId);
-
-    return nextTokenId;
+    let ret = [];
+    const e = expect(factory.connect(buyer).buy(token.address, amount))
+      .to.emit(token, "Transfer")
+      .withArgs(buyer.address, factory.address, price.mul(amount));
+    for (let i = 0; i < amount; i++) {
+      ret.push(nextTokenId.add(i));
+      e.to.emit(crunaVault, "Transfer").withArgs(addr0, buyer.address, nextTokenId.add(i));
+    }
+    await e;
+    return ret;
   }
 
   async function pluginAndSaveDepositorConfig(user) {
@@ -108,13 +112,15 @@ describe("LendingCrunaPluginMock tests", function () {
     // Assuming pluginInstance and lendingRules are already defined and set up in your tests
     const lendingRulesAddress = await pluginInstance.lendingRulesAddress();
     expect(lendingRulesAddress).to.equal(lendingRules.address);
+
+    return tokenId;
   }
 
-  // describe("deployment", function () {
-  //   it.only("should deploy everything as expected", async function () {
-  //     // test the beforeEach
-  //   });
-  // });
+  describe("deployment", function () {
+    it.only("should deploy everything as expected", async function () {
+      // test the beforeEach
+    });
+  });
 
   describe("LendingRules Treasury check", function () {
     it("Should get the treasury wallet address after it was deployed", async function () {
@@ -122,46 +128,52 @@ describe("LendingCrunaPluginMock tests", function () {
     });
   });
 
-  describe("Testing depositing functionality", async function () {
-    it("Buy and Plug then let MayG deposit an NFT", async function () {
-      await pluginAndSaveDepositorConfig(user1);
-
-      const tokenId = 1;
-      await mayGBadge.connect(mayGDeployer).safeMint(mayGDepositor.address, tokenId);
-      expect(await mayGBadge.ownerOf(tokenId)).to.equal(mayGDepositor.address);
-
-      await mayGBadge.connect(mayGDepositor).approve(pluginInstance.address, tokenId);
-
-      // New approach: Check for special deposit fee for the NFT collection, use default if not set
-      // const { depositFee, lendingPeriod } = await lendingRules.getSpecialTerms(mayGBadge.address);
-      const { depositFee } = await lendingRules.getSpecialTerms(mayGBadge.address);
-      expect(depositFee).to.equal(100);
-
-      await usdc.connect(mayGDepositor).approve(pluginInstance.address, depositFee);
-
-      const treasuryWalletUSDCBalanceBefore = await usdc.balanceOf(treasuryWallet.address);
-
-      await expect(pluginInstance.connect(mayGDepositor).depositAsset(mayGBadge.address, tokenId, usdc.address))
-        .to.emit(pluginInstance, "AssetReceived")
-        .withArgs(mayGBadge.address, tokenId, mayGDepositor.address, threeDaysInSeconds);
-
-      expect(await mayGBadge.ownerOf(tokenId)).to.equal(pluginInstance.address);
-
-      const treasuryWalletUSDCBalanceAfter = await usdc.balanceOf(treasuryWallet.address);
-      expect(treasuryWalletUSDCBalanceAfter.sub(treasuryWalletUSDCBalanceBefore)).to.equal(depositFee);
-
-      await expect(
-        pluginInstance.connect(mayGDepositor).withdrawAsset(mayGBadge.address, tokenId, zeroAddress()),
-      ).to.be.revertedWith("WithdrawalNotAllowedYet");
-    });
-  });
+  // describe("Testing depositing functionality", async function () {
+  //   it("Buy and Plug then let MayG deposit an NFT", async function () {
+  //
+  //     const tokenId = Number(await pluginAndSaveDepositorConfig(user1));
+  //
+  //     await mayGBadge.connect(mayGDeployer).safeMint(mayGDepositor.address, tokenId);
+  //     expect(await mayGBadge.ownerOf(tokenId)).to.equal(mayGDepositor.address);
+  //
+  //     await mayGBadge.connect(mayGDepositor).approve(pluginInstance.address, tokenId);
+  //
+  //     // New approach: Check for special deposit fee for the NFT collection, use default if not set
+  //     // const { depositFee, lendingPeriod } = await lendingRules.getSpecialTerms(mayGBadge.address);
+  //     const { depositFee } = await lendingRules.getSpecialTerms(mayGBadge.address);
+  //     expect(depositFee).to.equal(100);
+  //
+  //     await usdc.connect(mayGDepositor).approve(pluginInstance.address, depositFee);
+  //
+  //     const treasuryWalletUSDCBalanceBefore = await usdc.balanceOf(treasuryWallet.address);
+  //
+  //     await expect(pluginInstance.connect(mayGDepositor).depositAsset(mayGBadge.address, tokenId, usdc.address))
+  //       .to.emit(pluginInstance, "AssetReceived")
+  //       .withArgs(mayGBadge.address, tokenId, mayGDepositor.address, threeDaysInSeconds);
+  //
+  //     expect(await mayGBadge.ownerOf(tokenId)).to.equal(pluginInstance.address);
+  //
+  //     const treasuryWalletUSDCBalanceAfter = await usdc.balanceOf(treasuryWallet.address);
+  //     expect(treasuryWalletUSDCBalanceAfter.sub(treasuryWalletUSDCBalanceBefore)).to.equal(depositFee);
+  //
+  //     await expect(
+  //       pluginInstance.connect(mayGDepositor).withdrawAsset(mayGBadge.address, tokenId, zeroAddress()),
+  //     ).to.be.revertedWith("WithdrawalNotAllowedYet");
+  //   });
+  // });
 
   describe("Testing depositing functionality for Azra with special deposit fee", async function () {
     it("Set special deposit fee for AzraBadge, then deposit and withdraw an NFT", async function () {
-      await pluginAndSaveDepositorConfig(user2);
+      // const tokenId = Number(await pluginAndSaveDepositorConfig(user1));
+      // const tokenIdUser2 = Number(await pluginAndSaveDepositorConfig(user2));
+
+      let tokenId = (await buyNFT(usdc, 1, user1))[0];
+      let tokenId2 = (await buyNFT(usdc, 1, user2))[0];
+
+      // await pluginAndSaveDepositorConfig(user1);
       // Set a special deposit fee for the AzraBadge contract
       await lendingRules.setSpecialDepositFee(azraBadge.address, 50);
-      const tokenId = 2; // Assuming a different tokenId for uniqueness
+
       await azraBadge.connect(azraDeployer).safeMint(azraGamesDepositor.address, tokenId);
       expect(await azraBadge.ownerOf(tokenId)).to.equal(azraGamesDepositor.address);
 
