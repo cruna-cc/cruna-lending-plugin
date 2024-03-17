@@ -13,17 +13,6 @@ import {IERC7531} from "./IERC7531.sol";
 contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
   using SafeERC20 for IERC20;
 
-  modifier canWithdraw(address assetAddress, uint256 tokenId) {
-    DepositDetail storage depositDetail = _depositedAssets[assetAddress][tokenId];
-    if (depositDetail.depositor != msg.sender) {
-      revert NotDepositor(msg.sender, depositDetail.depositor);
-    }
-    if (block.timestamp < depositDetail.withdrawableAfter) {
-      revert WithdrawalNotAllowedYet(block.timestamp, depositDetail.withdrawableAfter);
-    }
-    _;
-  }
-
   error InsufficientFunds();
   error TransferFailed();
   error InvalidLendingRulesAddress();
@@ -119,6 +108,17 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
     depositAsset(assetAddress, tokenId, stableCoin);
   }
 
+  modifier canWithdraw(address assetAddress, uint256 tokenId) {
+    DepositDetail storage depositDetail = _depositedAssets[assetAddress][tokenId];
+    if (depositDetail.depositor != msg.sender) {
+      revert NotDepositor(msg.sender, depositDetail.depositor);
+    }
+    if (block.timestamp < depositDetail.withdrawableAfter) {
+      revert WithdrawalNotAllowedYet(block.timestamp, depositDetail.withdrawableAfter);
+    }
+    _;
+  }
+
   function withdrawAsset(address assetAddress, uint256 tokenId, address withdrawTo) public canWithdraw(assetAddress, tokenId) {
     // Remove the asset from the deposited assets mapping.
     delete _depositedAssets[assetAddress][tokenId];
@@ -142,12 +142,9 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
       );
   }
 
-  //
-  // maybe transferAssetToPlugin
   function withdrawAssetToPlugin(
     address assetAddress,
     uint256 tokenId_,
-    // send Vault tokenId and then we can go get the address from the token
     uint256 toVaultTokenId,
     address stableCoin
   ) public canWithdraw(assetAddress, tokenId_) {

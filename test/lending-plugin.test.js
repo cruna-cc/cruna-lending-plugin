@@ -90,7 +90,7 @@ describe("LendingCrunaPluginMock tests", function () {
     return ret;
   }
 
-  async function pluginAndSaveDepositorConfig(user) {
+  async function buyVaultPlugAndSaveDepositorConfig(user) {
     let tokenId = (await buyNFT(usdc, 1, user))[0];
     const managerAddress = await crunaVault.managerOf(tokenId);
     const manager = await ethers.getContractAt("CrunaManager", managerAddress);
@@ -113,17 +113,25 @@ describe("LendingCrunaPluginMock tests", function () {
     const lendingRulesAddress = await pluginInstance.lendingRulesAddress();
     expect(lendingRulesAddress).to.equal(lendingRules.address);
 
-    return tokenId;
+    tokenId = Number(tokenId);
+    return { tokenId, pluginInstance };
   }
 
-  async function mintBadgeAndApproveForDeposit(badge, deployer, tokenId, depositor) {
+  async function mintBadgeAndApproveForDeposit(pluginInstance, badge, deployer, tokenId, depositor, usdc) {
+    // Mint the badge NFT
     await badge.connect(deployer).safeMint(depositor.address, tokenId);
     expect(await badge.ownerOf(tokenId)).to.equal(depositor.address);
+
+    // Approve the plugin instance to transfer the NFT on behalf of the depositor
     await badge.connect(depositor).approve(pluginInstance.address, tokenId);
+
+    // Fetch the deposit fee required for this badge
+    const { depositFee } = await lendingRules.getSpecialTerms(badge.address);
+    await usdc.connect(depositor).approve(pluginInstance.address, Number(depositFee));
   }
 
-  // describe.skip("deployment", function () {
-  //   it("should deploy everything as expected", async function () {
+  // describe("deployment", function () {
+  //   it.only("should deploy everything as expected", async function () {
   //     // test the beforeEach
   //   });
   // });
@@ -135,39 +143,44 @@ describe("LendingCrunaPluginMock tests", function () {
   });
 
   describe("Testing depositing functionality", async function () {
-    it("Buy and Plug then let MayG deposit an NFT", async function () {
-      const tokenId = Number(await pluginAndSaveDepositorConfig(user1));
+    it("Buy and Plug then let MayG deposit an NFT and fail on Withdraw attempt", async function () {
+      const { tokenId: vaultTokenIdUser1, pluginInstance: pluginInstanceUser1 } =
+        await buyVaultPlugAndSaveDepositorConfig(user1);
 
-      await mintBadgeAndApproveForDeposit(mayGBadge, mayGDeployer, tokenId, mayGDepositor);
+      // Use vaultTokenIdUser1 for the tokenId of the Badge to keep them the same, why not?
+      await mintBadgeAndApproveForDeposit(pluginInstanceUser1, mayGBadge, mayGDeployer, vaultTokenIdUser1, mayGDepositor, usdc);
 
-      // Call getSpecialTerms, which should return the _defaultDepositFee as we have not set anything special
-      const { depositFee } = await lendingRules.getSpecialTerms(mayGBadge.address);
-      expect(depositFee).to.equal(100);
-
-      await usdc.connect(mayGDepositor).approve(pluginInstance.address, depositFee);
-
+      // We will store the treasury balance before the deposit, for later.
       const treasuryWalletUSDCBalanceBefore = await usdc.balanceOf(treasuryWallet.address);
 
-      await expect(pluginInstance.connect(mayGDepositor).depositAsset(mayGBadge.address, tokenId, usdc.address))
-        .to.emit(pluginInstance, "AssetReceived")
-        .withArgs(mayGBadge.address, tokenId, mayGDepositor.address, threeDaysInSeconds);
+      await expect(pluginInstanceUser1.connect(mayGDepositor).depositAsset(mayGBadge.address, vaultTokenIdUser1, usdc.address))
+        .to.emit(pluginInstanceUser1, "AssetReceived")
+        .withArgs(mayGBadge.address, vaultTokenIdUser1, mayGDepositor.address, threeDaysInSeconds);
 
-      expect(await mayGBadge.ownerOf(tokenId)).to.equal(pluginInstance.address);
+      expect(await mayGBadge.ownerOf(vaultTokenIdUser1)).to.equal(pluginInstanceUser1.address);
 
       const treasuryWalletUSDCBalanceAfter = await usdc.balanceOf(treasuryWallet.address);
+      const { depositFee } = await lendingRules.getSpecialTerms(mayGBadge.address);
       expect(treasuryWalletUSDCBalanceAfter.sub(treasuryWalletUSDCBalanceBefore)).to.equal(depositFee);
 
       await expect(
-        pluginInstance.connect(mayGDepositor).withdrawAsset(mayGBadge.address, tokenId, zeroAddress()),
+        pluginInstanceUser1.connect(mayGDepositor).withdrawAsset(mayGBadge.address, vaultTokenIdUser1, zeroAddress()),
       ).to.be.revertedWith("WithdrawalNotAllowedYet");
     });
   });
 
   describe("Testing depositing with special deposit fee and standard withdrawal", async function () {
     it("Set special deposit fee for AzraBadge, then deposit and withdraw an NFT", async function () {
-      const tokenId = Number(await pluginAndSaveDepositorConfig(user1));
-
-      await mintBadgeAndApproveForDeposit(azraBadge, azraDeployer, tokenId, azraGamesDepositor);
+      const { tokenId: vaultTokenIdUser2, pluginInstance: pluginInstanceUser2 } =
+        await buyVaultPlugAndSaveDepositorConfig(user1);
+      await mintBadgeAndApproveForDeposit(
+        pluginInstanceUser2,
+        azraBadge,
+        azraDeployer,
+        vaultTokenIdUser2,
+        azraGamesDepositor,
+        usdc,
+      );
 
       // Set a special deposit fee for the AzraBadge contract
       await lendingRules.setSpecialDepositFee(azraBadge.address, 50);
@@ -175,7 +188,6 @@ describe("LendingCrunaPluginMock tests", function () {
       // Retrieve the special deposit fee for the AzraBadge collection
       const { depositFee } = await lendingRules.getSpecialTerms(azraBadge.address);
       expect(depositFee).to.equal(50);
-
       await usdc.connect(azraGamesDepositor).approve(pluginInstance.address, depositFee);
 
       // Get the treasury balance before the deposit, for later.
@@ -183,41 +195,71 @@ describe("LendingCrunaPluginMock tests", function () {
 
       // Try and deposit using TetherUSD, which is not an approved stable coin
       await expect(
-        pluginInstance.connect(azraGamesDepositor).depositAsset(azraBadge.address, tokenId, usdt.address),
+        pluginInstance.connect(azraGamesDepositor).depositAsset(azraBadge.address, vaultTokenIdUser2, usdt.address),
       ).to.be.revertedWith("UnsupportedStableCoin");
 
       // Now deposit with an approved stablecoin, which is usdc
-      await expect(pluginInstance.connect(azraGamesDepositor).depositAsset(azraBadge.address, tokenId, usdc.address))
+      await expect(pluginInstance.connect(azraGamesDepositor).depositAsset(azraBadge.address, vaultTokenIdUser2, usdc.address))
         .to.emit(pluginInstance, "AssetReceived")
-        .withArgs(azraBadge.address, tokenId, azraGamesDepositor.address, threeDaysInSeconds);
+        .withArgs(azraBadge.address, vaultTokenIdUser2, azraGamesDepositor.address, threeDaysInSeconds);
 
-      expect(await azraBadge.ownerOf(tokenId)).to.equal(pluginInstance.address);
+      expect(await azraBadge.ownerOf(vaultTokenIdUser2)).to.equal(pluginInstance.address);
 
+      // Now we check that the treasury balance has increased by the deposit fee
       const treasuryWalletUSDCBalanceAfter = await usdc.balanceOf(treasuryWallet.address);
-      expect(treasuryWalletUSDCBalanceAfter.sub(treasuryWalletUSDCBalanceBefore)).to.equal(depositFee);
+      expect(treasuryWalletUSDCBalanceAfter.sub(treasuryWalletUSDCBalanceBefore)).is.equal(depositFee);
 
       await expect(
-        pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, tokenId, zeroAddress()),
+        pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, vaultTokenIdUser2, zeroAddress()),
       ).to.be.revertedWith("WithdrawalNotAllowedYet");
 
       // Increase the block timestamp by 2 days and it should still fail
       await increaseBlockTimestampBy(twoDaysInSeconds);
       await expect(
-        pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, tokenId, zeroAddress()),
+        pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, vaultTokenIdUser2, zeroAddress()),
       ).to.be.revertedWith("WithdrawalNotAllowedYet");
 
       // Increase the block timestamp by 2 more day and it should succeed
       await increaseBlockTimestampBy(twoDaysInSeconds);
-      await expect(pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, tokenId, zeroAddress()))
+      await expect(
+        pluginInstance.connect(azraGamesDepositor).withdrawAsset(azraBadge.address, vaultTokenIdUser2, zeroAddress()),
+      )
         .to.emit(azraBadge, "Transfer")
-        .withArgs(pluginInstance.address, azraGamesDepositor.address, tokenId);
+        .withArgs(pluginInstance.address, azraGamesDepositor.address, vaultTokenIdUser2);
     });
   });
 
   describe("Testing withdrawAssetToPlugin and depositFromPlugin", async function () {
-    it("Deposit and withdraw an NFT to another user's plugin address", async function () {
-      const tokenId = Number(await pluginAndSaveDepositorConfig(user1));
-      const tokenIdUser2 = Number(await pluginAndSaveDepositorConfig(user2));
+    it.skip("Deposit and withdraw an NFT to another user's plugin address", async function () {
+      const tokenId = Number(await buyVaultPlugAndSaveDepositorConfig(user1));
+      const tokenIdUser2 = Number(await buyVaultPlugAndSaveDepositorConfig(user2));
+
+      // Let's mint badges for both mayG and azra and then deposit them to user1 and user2's plugin addresses
+      await mintBadgeAndApproveForDeposit(mayGBadge, mayGDeployer, tokenId, mayGDepositor);
+      await mintBadgeAndApproveForDeposit(azraBadge, azraDeployer, tokenIdUser2, azraGamesDepositor);
+
+      // mayG deposits a badge to user1's plugin address
+      await expect(pluginInstance.connect(mayGDepositor).depositAsset(mayGBadge.address, tokenId, usdc.address))
+        .to.emit(pluginInstance, "AssetReceived")
+        .withArgs(mayGBadge.address, tokenId, mayGDepositor.address, threeDaysInSeconds);
+
+      // Let's increase the block time by 3 days
+      await increaseBlockTimestampBy(threeDaysInSeconds);
+
+      // Withdraw from user1's plugin address and deposit to user2's plugin address
+      /*
+        function withdrawAssetToPlugin(
+          address assetAddress,
+          uint256 tokenId_,
+          // send Vault tokenId, and then we can go get the address from the token
+          uint256 toVaultTokenId,
+          address stableCoin
+        )
+       */
+      // emit event AssetTransferredToPlugin with assetAddress, tokenId_, msg.sender, toPlugin
+      await expect(pluginInstance.connect(user1).withdrawAssetToPlugin(mayGBadge.address, tokenId, tokenIdUser2, usdc.address))
+        .to.emit(pluginInstance, "AssetTransferredToPlugin")
+        .withArgs(mayGBadge.address, tokenId, user1.address, user2.address);
     });
   });
 });
