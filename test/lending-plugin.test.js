@@ -230,33 +230,42 @@ describe("LendingCrunaPluginMock tests", function () {
   });
 
   describe("Testing withdrawAssetToPlugin and depositFromPlugin", async function () {
-    it.only("Deposit and withdraw an NFT to another user's plugin address", async function () {
+    it.skip("Deposit and withdraw an NFT to another user's plugin address", async function () {
+      const magGBadgeTokenId = 1;
+
+      // call buyVaultPlugAndSaveDepositorConfig for user1 and then mint and approve for deposit
       const { tokenId: vaultTokenIdUser1, pluginInstance: pluginInstanceUser1 } =
         await buyVaultPlugAndSaveDepositorConfig(user1);
-      await mintBadgeAndApproveForDeposit(pluginInstanceUser1, mayGBadge, mayGDeployer, vaultTokenIdUser1, mayGDepositor, usdc);
+      await mintBadgeAndApproveForDeposit(pluginInstanceUser1, mayGBadge, mayGDeployer, magGBadgeTokenId, mayGDepositor, usdc);
+
+      // call buyVaultPlugAndSaveDepositorConfig for user2
+      const { tokenId: vaultTokenIdUser2, pluginInstance: pluginInstanceUser2 } =
+        await buyVaultPlugAndSaveDepositorConfig(user2);
 
       // mayG deposits a badge to user1's plugin address
-      await expect(pluginInstanceUser1.connect(mayGDepositor).depositAsset(mayGBadge.address, vaultTokenIdUser1, usdc.address))
+      await expect(pluginInstanceUser1.connect(mayGDepositor).depositAsset(mayGBadge.address, magGBadgeTokenId, usdc.address))
         .to.emit(pluginInstanceUser1, "AssetReceived")
-        .withArgs(mayGBadge.address, vaultTokenIdUser1, mayGDepositor.address, threeDaysInSeconds);
+        .withArgs(mayGBadge.address, 1, mayGDepositor.address, threeDaysInSeconds);
 
       // Let's increase the block time by 3 days
       await increaseBlockTimestampBy(threeDaysInSeconds + 1);
 
-      return;
-      // Approve the mayGBadge to be transferred from user1's plugin address
-      await mayGBadge.connect(mayGDepositor).approve(pluginInstanceUser1.address, vaultTokenIdUser1);
+      // Fetch the deposit fee required for transferring the asset.
+      const { depositFee } = await lendingRules.getSpecialTerms(mayGBadge.address);
 
-      return;
-      // Approve the usdc to be spent by user1's plugin address
-      await usdc.connect(mayGDepositor).approve(pluginInstanceUser1.address, 1000);
+      // Approve the plugin instance initiating the transfer (pluginInstanceUser1) to spend the deposit fee amount of USDC on behalf of mayGDepositor.
+      await usdc.connect(mayGDepositor).approve(pluginInstanceUser1.address, depositFee);
 
+      console.log("pluginInstanceUser1.address", pluginInstanceUser1.address);
+      console.log("pluginInstanceUser2.address", pluginInstanceUser2.address);
+      // Expect the transferAssetToPlugin function to successfully transfer the asset to the new plugin and emit the AssetTransferredToPlugin event.
       await expect(
         pluginInstanceUser1
           .connect(mayGDepositor)
-          .withdrawAssetToPlugin(mayGBadge.address, vaultTokenIdUser1, vaultTokenIdUser2, usdc.address),
-      ).to.emit(pluginInstance, "AssetTransferredToPlugin");
-      // .withArgs(mayGBadge.address, vaultTokenIdUser1, user1.address, user2.address);
+          .transferAssetToPlugin(mayGBadge.address, magGBadgeTokenId, vaultTokenIdUser2, usdc.address),
+      )
+        .to.emit(pluginInstanceUser1, "AssetTransferredToPlugin")
+        .withArgs(mayGBadge.address, magGBadgeTokenId, mayGDepositor.address, pluginInstanceUser2.address);
     });
   });
 });

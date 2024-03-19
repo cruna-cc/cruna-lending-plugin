@@ -10,6 +10,8 @@ import {ERC6551AccountLib} from "erc6551/lib/ERC6551AccountLib.sol";
 import {Canonical} from "@cruna/protocol/libs/Canonical.sol";
 import {IERC7531} from "./IERC7531.sol";
 
+import {console} from "hardhat/console.sol";
+
 contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
   using SafeERC20 for IERC20;
 
@@ -27,10 +29,11 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
 
   event AssetTransferredToPlugin(
     address indexed assetAddress,
-    uint256 indexed tokenId,
-    address indexed fromDepositor,
-    address toPlugin
+    uint256 indexed tokenId_,
+    address fromDepositor,
+    uint256 indexed toVaultTokenId
   );
+
   event AssetReceived(address indexed assetAddress, uint256 indexed tokenId, address depositor, uint256 lendingPeriod);
 
   struct DepositDetail {
@@ -68,47 +71,63 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
     lendingRulesAddress = ILendingRules(_lendingRulesAddress);
   }
 
-  function depositAsset(address assetAddress, uint256 tokenId, address stableCoin) public {
-    // Ensure the lendingRules contract has been set.
-    if (address(lendingRulesAddress) == address(0)) {
-      revert LendingRulesNotSet();
-    }
-
+  function _handleDepositFee(address assetAddress, address stableCoin, address depositor) internal {
     if (!lendingRulesAddress.isStableCoinSupported(stableCoin)) {
       revert UnsupportedStableCoin();
     }
 
-    // Retrieve both the deposit fee and the lending period for the asset.
-    (uint256 depositFee, uint256 lendingPeriod) = lendingRulesAddress.getSpecialTerms(assetAddress);
+    (uint256 depositFee, ) = lendingRulesAddress.getSpecialTerms(assetAddress);
 
-    // Check if the stablecoin balance is sufficient for the deposit fee.
-    if (IERC20(stableCoin).balanceOf(msg.sender) < depositFee) {
-      revert InsufficientFunds();
-    }
-
-    // Transfer the asset to the plugin contract and record the deposit.
-    _depositedAssets[assetAddress][tokenId] = DepositDetail(msg.sender, block.timestamp + lendingPeriod);
-    IERC721(assetAddress).safeTransferFrom(msg.sender, address(this), tokenId);
-    emit AssetReceived(assetAddress, tokenId, msg.sender, lendingPeriod);
-
-    // If a deposit fee is set, transfer it to the treasury wallet.
     if (depositFee > 0) {
+      uint256 stableCoinBalance = IERC20(stableCoin).balanceOf(depositor);
+      if (stableCoinBalance < depositFee) {
+        revert InsufficientFunds();
+      }
+
       address treasuryWallet = lendingRulesAddress.getTreasuryWallet();
-      IERC20(stableCoin).safeTransferFrom(msg.sender, treasuryWallet, depositFee);
+      IERC20(stableCoin).safeTransferFrom(depositor, treasuryWallet, depositFee);
     }
   }
 
-  function depositFromPlugin(address assetAddress, uint256 tokenId, uint256 fromVaultTokenId, address stableCoin) external {
+  function _handleNFTDeposit(address assetAddress, uint256 tokenId, address depositor) internal {
+    (, uint256 lendingPeriod) = lendingRulesAddress.getSpecialTerms(assetAddress);
+
+    _depositedAssets[assetAddress][tokenId] = DepositDetail(depositor, block.timestamp + lendingPeriod);
+
+    IERC721(assetAddress).safeTransferFrom(depositor, address(this), tokenId);
+    emit AssetReceived(assetAddress, tokenId, depositor, lendingPeriod);
+  }
+
+  function depositAsset(address assetAddress, uint256 tokenId, address stableCoin) public {
+    if (address(lendingRulesAddress) == address(0)) {
+      revert LendingRulesNotSet();
+    }
+
+    // This function will revert if the depositor does not have enough funds to cover the deposit fee.
+    _handleDepositFee(assetAddress, stableCoin, msg.sender);
+
+    // Proceed to handle the NFT deposit after ensuring the deposit fee has been successfully handled.
+    _handleNFTDeposit(assetAddress, tokenId, msg.sender);
+  }
+
+  // asstAddress is the MayGBadge, tokenId is the tokenId of the NFT,
+  // fromVaultTokenId is the tokenId of the vault that the NFT is currently in, stableCoin is the stablecoin that the deposit fee is paid in
+  function depositFromPlugin(address assetAddress, uint256 tokenId, uint256 fromVaultTokenId) external {
+    console.log("depositFromPlugin called");
+
     address fromPlugin = _calculatePluginAddress(fromVaultTokenId);
+    console.log("fromPlugin: ", fromPlugin);
     if (fromPlugin != msg.sender) {
       revert InvalidSourcePlugin();
     }
 
-    // Call depositAsset to handle the actual deposit process under the new plugin's terms
-    depositAsset(assetAddress, tokenId, stableCoin);
+    // Handle the NFT deposit directly, bypassing additional deposit fee handling
+    // as the depositFee is paid in withdrawAssetToPlugin function.
+    _handleNFTDeposit(assetAddress, tokenId, msg.sender);
   }
 
   modifier canWithdraw(address assetAddress, uint256 tokenId) {
+    console.log("canWithdraw called");
     DepositDetail storage depositDetail = _depositedAssets[assetAddress][tokenId];
     if (depositDetail.depositor != msg.sender) {
       revert NotDepositor(msg.sender, depositDetail.depositor);
@@ -142,35 +161,39 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
       );
   }
 
-  function withdrawAssetToPlugin(
+  // rename to transferAssetToPlugin
+  // Take the depositFee here and create a common function that is used here and by depositAsset
+  function transferAssetToPlugin(
     address assetAddress,
     uint256 tokenId_,
     uint256 toVaultTokenId,
     address stableCoin
   ) public canWithdraw(assetAddress, tokenId_) {
-    // Get the plugin address from the vault tokenId
+    console.log("transferAssetToPlugin called");
     address toPlugin = _calculatePluginAddress(toVaultTokenId);
-
+    console.log("toPlugin: ", toPlugin);
+    // Ensure the target plugin exists by checking the code size
     uint256 size;
-
     // solhint-disable-next-line no-inline-assembly
     assembly {
       size := extcodesize(toPlugin)
     }
-
     if (size == 0) revert PluginNotDeployed();
 
-    // Transfer the NFT to the target plugin.
-    IERC721(assetAddress).safeTransferFrom(address(this), toPlugin, tokenId_);
+    // Handle the deposit fee for the transfer to ensure the depositor has enough funds
+    // and pays the fee to the treasury. This action mirrors fee handling in a deposit context,
+    // but it's adapted for transferring between plugins.
+    _handleDepositFee(assetAddress, stableCoin, msg.sender);
 
-    // Call `depositFromPlugin` on the target plugin to deposit the NFT under new terms.
-    LendingCrunaPlugin(toPlugin).depositFromPlugin(assetAddress, tokenId_, tokenId(), stableCoin);
+    // After the deposit fee is handled, initiate the deposit process on the target plugin
+    // with the NFT. This action effectively transfers the NFT to the new plugin and deposits it under new terms.
+    LendingCrunaPlugin(toPlugin).depositFromPlugin(assetAddress, tokenId_, tokenId());
 
-    // Remove the asset from the deposited assets mapping after successful transfer and deposit.
+    // Successfully transferred and deposited NFT under new terms, so clear it from the original depositor's records.
     delete _depositedAssets[assetAddress][tokenId_];
 
-    // Emit an event for successful transfer and deposit to another plugin.
-    emit AssetTransferredToPlugin(assetAddress, tokenId_, msg.sender, toPlugin);
+    // Emit an event for the successful transfer and new deposit.
+    emit AssetTransferredToPlugin(assetAddress, tokenId_, msg.sender, toVaultTokenId);
   }
 
   uint256[50] private __gap; // Reserved space for future upgrades
