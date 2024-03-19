@@ -24,6 +24,7 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
   error InvalidSourcePlugin();
   error PluginNotDeployed();
   error TokenNotDeposited(address tokenAddress, uint256 tokenId);
+  error RightsNotHeld(address tokenAddress, uint256 tokenId, bytes4 rights);
 
   event AssetTransferredToPlugin(
     address indexed assetAddress,
@@ -37,7 +38,11 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
   struct DepositDetail {
     address depositor;
     uint256 withdrawableAfter;
+    mapping(bytes4 => bool) rights;
   }
+
+  bytes4 private constant RIGHTS_OWNERSHIP = bytes4(keccak256("ownership"));
+  bytes4 private constant RIGHTS_USAGE = bytes4(keccak256("usage"));
 
   mapping(address => mapping(uint256 => DepositDetail)) private _depositedAssets;
 
@@ -47,26 +52,18 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
     return bytes4(keccak256("LendingCrunaPlugin"));
   }
 
-  function rightsHolderOf(address tokenAddress, uint256 tokenId, bytes4 /* rights */) external view override returns (address) {
-    DepositDetail memory depositDetail = _depositedAssets[tokenAddress][tokenId];
-
-    if (depositDetail.depositor == address(0)) {
+  function rightsHolderOf(address tokenAddress, uint256 tokenId, bytes4 rights) external view override returns (address) {
+    if (_depositedAssets[tokenAddress][tokenId].depositor == address(0)) {
       revert TokenNotDeposited(tokenAddress, tokenId);
     }
 
-    // Assuming the depositor holds all rights for simplicity; adjust as needed.
-    return depositDetail.depositor;
-  }
-
-  /*
-   * @notice Function to set the lending rules contract address.
-   * @param _lendingRulesAddress The address of the lending rules contract.
-   */
-  function setLendingRulesAddress(address _lendingRulesAddress) external onlyTokenOwner {
-    if (_lendingRulesAddress == address(0)) {
-      revert InvalidLendingRulesAddress();
+    // Check if the requested rights are held for the token.
+    bool hasRights = _depositedAssets[tokenAddress][tokenId].rights[rights];
+    if (!hasRights) {
+      revert RightsNotHeld(tokenAddress, tokenId, rights);
     }
-    lendingRulesAddress = ILendingRules(_lendingRulesAddress);
+
+    return address(this);
   }
 
   function _handleDepositFee(address assetAddress, address stableCoin, address depositor) internal {
@@ -87,13 +84,30 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
     }
   }
 
-  function _handleNFTDeposit(address assetAddress, uint256 tokenId, address depositor) internal {
+  function _updateDepositorDetails(address assetAddress, uint256 tokenId, address depositor) internal returns (uint256) {
     (, uint256 lendingPeriod) = lendingRulesAddress.getSpecialTerms(assetAddress);
+    DepositDetail storage depositDetail = _depositedAssets[assetAddress][tokenId];
+    depositDetail.depositor = depositor;
+    depositDetail.withdrawableAfter = block.timestamp + lendingPeriod;
+    depositDetail.rights[RIGHTS_OWNERSHIP] = true; // Setting ownership rights
+    depositDetail.rights[RIGHTS_USAGE] = true; // Setting usage rights
+    return lendingPeriod;
+  }
 
-    _depositedAssets[assetAddress][tokenId] = DepositDetail(depositor, block.timestamp + lendingPeriod);
+  function _handleNFTDeposit(address assetAddress, uint256 tokenId, address depositor) internal {
+    // Update deposited assets to reflect new ownership including setting the rights.
+    uint256 lendingPeriod = _updateDepositorDetails(assetAddress, tokenId, depositor);
 
     IERC721(assetAddress).safeTransferFrom(depositor, address(this), tokenId);
     emit AssetReceived(assetAddress, tokenId, depositor, lendingPeriod);
+    emit RightsHolderChange(assetAddress, tokenId, address(this), bytes4(keccak256("ownership")));
+  }
+
+  function setLendingRulesAddress(address _lendingRulesAddress) external onlyTokenOwner {
+    if (_lendingRulesAddress == address(0)) {
+      revert InvalidLendingRulesAddress();
+    }
+    lendingRulesAddress = ILendingRules(_lendingRulesAddress);
   }
 
   function depositAsset(address assetAddress, uint256 tokenId, address stableCoin) public {
@@ -119,11 +133,8 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
       revert TransferNotCompleted(assetAddress, tokenId);
     }
 
-    // Retrieve the lending period for the asset.
-    (, uint256 lendingPeriod) = lendingRulesAddress.getSpecialTerms(assetAddress);
-
     // Update deposited assets to reflect new ownership.
-    _depositedAssets[assetAddress][tokenId] = DepositDetail(address(this), block.timestamp + lendingPeriod);
+    uint256 lendingPeriod = _updateDepositorDetails(assetAddress, tokenId, address(this));
 
     // Emit an event indicating receipt of the asset.
     emit AssetReceived(assetAddress, tokenId, address(this), lendingPeriod);
@@ -192,6 +203,8 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
 
     // Emit an event indicating that the NFT has been transferred to another plugin.
     emit AssetTransferredToPlugin(assetAddress, tokenId_, msg.sender, toVaultTokenId);
+
+    emit RightsHolderChange(assetAddress, tokenId_, toPlugin, bytes4(keccak256("ownership")));
   }
 
   uint256[50] private __gap; // Reserved space for future upgrades

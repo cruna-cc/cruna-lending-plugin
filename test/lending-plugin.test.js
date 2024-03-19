@@ -247,6 +247,11 @@ describe("LendingCrunaPluginMock tests", function () {
         .to.emit(pluginInstanceUser1, "AssetReceived")
         .withArgs(mayGBadge.address, 1, mayGDepositor.address, threeDaysInSeconds);
 
+      // Validate rights holder before the transfer
+      expect(
+        await pluginInstanceUser1.rightsHolderOf(mayGBadge.address, magGBadgeTokenId, bytes4(keccak256("ownership"))),
+      ).to.equal(pluginInstanceUser1.address);
+
       // Let's increase the block time by 3 days
       await increaseBlockTimestampBy(threeDaysInSeconds + 1);
 
@@ -273,6 +278,11 @@ describe("LendingCrunaPluginMock tests", function () {
 
       // Check that user2's plugin now owns the NFT
       expect(await mayGBadge.ownerOf(magGBadgeTokenId)).to.equal(pluginInstanceUser2.address);
+
+      // Validate that the rights holder of the NFT is now user2
+      expect(
+        await pluginInstanceUser2.rightsHolderOf(mayGBadge.address, magGBadgeTokenId, bytes4(keccak256("ownership"))),
+      ).to.equal(pluginInstanceUser2.address);
     });
   });
 });
