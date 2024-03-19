@@ -229,8 +229,8 @@ describe("LendingCrunaPluginMock tests", function () {
     });
   });
 
-  describe("Testing withdrawAssetToPlugin and depositFromPlugin", async function () {
-    it.skip("Deposit and withdraw an NFT to another user's plugin address", async function () {
+  describe("Testing transferAssetToPlugin and depositFromPlugin", async function () {
+    it("Deposit and withdraw an NFT to another user's plugin address", async function () {
       const magGBadgeTokenId = 1;
 
       // call buyVaultPlugAndSaveDepositorConfig for user1 and then mint and approve for deposit
@@ -256,8 +256,9 @@ describe("LendingCrunaPluginMock tests", function () {
       // Approve the plugin instance initiating the transfer (pluginInstanceUser1) to spend the deposit fee amount of USDC on behalf of mayGDepositor.
       await usdc.connect(mayGDepositor).approve(pluginInstanceUser1.address, depositFee);
 
-      console.log("pluginInstanceUser1.address", pluginInstanceUser1.address);
-      console.log("pluginInstanceUser2.address", pluginInstanceUser2.address);
+      // Before we transfer lets that user1's plugin now owns the NFT
+      expect(await mayGBadge.ownerOf(magGBadgeTokenId)).to.equal(pluginInstanceUser1.address);
+
       // Expect the transferAssetToPlugin function to successfully transfer the asset to the new plugin and emit the AssetTransferredToPlugin event.
       await expect(
         pluginInstanceUser1
@@ -265,7 +266,13 @@ describe("LendingCrunaPluginMock tests", function () {
           .transferAssetToPlugin(mayGBadge.address, magGBadgeTokenId, vaultTokenIdUser2, usdc.address),
       )
         .to.emit(pluginInstanceUser1, "AssetTransferredToPlugin")
-        .withArgs(mayGBadge.address, magGBadgeTokenId, mayGDepositor.address, pluginInstanceUser2.address);
+        .withArgs(mayGBadge.address, magGBadgeTokenId, mayGDepositor.address, vaultTokenIdUser2);
+
+      // Check that user1's plugin no longer owns the NFT
+      expect(await mayGBadge.ownerOf(magGBadgeTokenId)).to.not.equal(pluginInstanceUser1.address);
+
+      // Check that user2's plugin now owns the NFT
+      expect(await mayGBadge.ownerOf(magGBadgeTokenId)).to.equal(pluginInstanceUser2.address);
     });
   });
 });

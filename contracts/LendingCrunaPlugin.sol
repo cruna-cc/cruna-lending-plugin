@@ -10,8 +10,6 @@ import {ERC6551AccountLib} from "erc6551/lib/ERC6551AccountLib.sol";
 import {Canonical} from "@cruna/protocol/libs/Canonical.sol";
 import {IERC7531} from "./IERC7531.sol";
 
-import {console} from "hardhat/console.sol";
-
 contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
   using SafeERC20 for IERC20;
 
@@ -110,24 +108,28 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
     _handleNFTDeposit(assetAddress, tokenId, msg.sender);
   }
 
-  // asstAddress is the MayGBadge, tokenId is the tokenId of the NFT,
-  // fromVaultTokenId is the tokenId of the vault that the NFT is currently in, stableCoin is the stablecoin that the deposit fee is paid in
   function depositFromPlugin(address assetAddress, uint256 tokenId, uint256 fromVaultTokenId) external {
-    console.log("depositFromPlugin called");
-
     address fromPlugin = _calculatePluginAddress(fromVaultTokenId);
-    console.log("fromPlugin: ", fromPlugin);
     if (fromPlugin != msg.sender) {
       revert InvalidSourcePlugin();
     }
 
-    // Handle the NFT deposit directly, bypassing additional deposit fee handling
-    // as the depositFee is paid in withdrawAssetToPlugin function.
-    _handleNFTDeposit(assetAddress, tokenId, msg.sender);
+    // Ensure the asset was transferred correctly.
+    if (IERC721(assetAddress).ownerOf(tokenId) != address(this)) {
+      revert TransferNotCompleted(assetAddress, tokenId);
+    }
+
+    // Retrieve the lending period for the asset.
+    (, uint256 lendingPeriod) = lendingRulesAddress.getSpecialTerms(assetAddress);
+
+    // Update deposited assets to reflect new ownership.
+    _depositedAssets[assetAddress][tokenId] = DepositDetail(address(this), block.timestamp + lendingPeriod);
+
+    // Emit an event indicating receipt of the asset.
+    emit AssetReceived(assetAddress, tokenId, address(this), lendingPeriod);
   }
 
   modifier canWithdraw(address assetAddress, uint256 tokenId) {
-    console.log("canWithdraw called");
     DepositDetail storage depositDetail = _depositedAssets[assetAddress][tokenId];
     if (depositDetail.depositor != msg.sender) {
       revert NotDepositor(msg.sender, depositDetail.depositor);
@@ -161,38 +163,34 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
       );
   }
 
-  // rename to transferAssetToPlugin
-  // Take the depositFee here and create a common function that is used here and by depositAsset
   function transferAssetToPlugin(
     address assetAddress,
     uint256 tokenId_,
     uint256 toVaultTokenId,
     address stableCoin
   ) public canWithdraw(assetAddress, tokenId_) {
-    console.log("transferAssetToPlugin called");
     address toPlugin = _calculatePluginAddress(toVaultTokenId);
-    console.log("toPlugin: ", toPlugin);
+
     // Ensure the target plugin exists by checking the code size
     uint256 size;
-    // solhint-disable-next-line no-inline-assembly
     assembly {
       size := extcodesize(toPlugin)
     }
     if (size == 0) revert PluginNotDeployed();
 
     // Handle the deposit fee for the transfer to ensure the depositor has enough funds
-    // and pays the fee to the treasury. This action mirrors fee handling in a deposit context,
-    // but it's adapted for transferring between plugins.
+    // and pays the fee to the treasury.
     _handleDepositFee(assetAddress, stableCoin, msg.sender);
 
-    // After the deposit fee is handled, initiate the deposit process on the target plugin
-    // with the NFT. This action effectively transfers the NFT to the new plugin and deposits it under new terms.
+    // Transfer the NFT directly to the new plugin.
+    IERC721(assetAddress).safeTransferFrom(address(this), toPlugin, tokenId_);
+
     LendingCrunaPlugin(toPlugin).depositFromPlugin(assetAddress, tokenId_, tokenId());
 
-    // Successfully transferred and deposited NFT under new terms, so clear it from the original depositor's records.
+    // Clear the asset from the current plugin's deposited assets mapping.
     delete _depositedAssets[assetAddress][tokenId_];
 
-    // Emit an event for the successful transfer and new deposit.
+    // Emit an event indicating that the NFT has been transferred to another plugin.
     emit AssetTransferredToPlugin(assetAddress, tokenId_, msg.sender, toVaultTokenId);
   }
 
