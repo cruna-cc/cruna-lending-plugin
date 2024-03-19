@@ -105,6 +105,9 @@ describe("LendingCrunaPluginMock tests", function () {
     const pluginAddress = await manager.pluginAddress(nameId, "0x00000000");
     pluginInstance = await ethers.getContractAt("LendingCrunaPluginMock", pluginAddress);
 
+    // We will check that the pluginInstance returns false when calling requiresToManageTransfer
+    expect(await pluginInstance.requiresToManageTransfer()).to.equal(false);
+
     await pluginInstance.connect(user).setLendingRulesAddress(lendingRules.address);
     const lendingRulesAddressSet = await pluginInstance.lendingRulesAddress();
     expect(lendingRulesAddressSet).to.equal(lendingRules.address);
