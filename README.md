@@ -5,7 +5,7 @@ The LendingCrunaPlugin is an extension for the [Cruna Protocol](https://github.c
 ## Features
 
 - **Secure Asset Lending**: Lock assets for a specified minimum lending period, preventing premature withdrawals.
-- **Depositor Control**: Allows the asset depositor (e.g., MayG) to retain control over their assets, with options to withdraw to the original address or transfer to another validated plugin after the lending period.
+- **Depositor Control**: Allows the asset depositor to retain control over their assets, with options to withdraw to the original address or transfer to another validated plugin after the lending period.
 - **Beta Tester Restrictions**: Ensures beta testers can use the assets without the ability to withdraw or sell them, focusing on testing purposes.
 - **Flexible and Extensible**: Seamlessly integrates with the Cruna Protocol, supporting various digital assets and lending conditions.
 
