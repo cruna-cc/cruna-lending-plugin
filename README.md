@@ -13,10 +13,10 @@ The LendingCrunaPlugin is an extension for the [Cruna Protocol](https://github.c
 
 To integrate the LendingCrunaPlugin with your TRTVault, follow these steps:
 
-### Prerequisites
+### Prerequisites for depositors
 
 - Deployed CrunaVault using the Cruna Protocol.
-- Cruna Protocol SDK installed.
+- Lending Plugin SDK installed.
 
 ### Installation
 
