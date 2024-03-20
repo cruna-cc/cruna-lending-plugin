@@ -96,14 +96,14 @@ describe("LendingCrunaPluginMock tests", function () {
     const manager = await ethers.getContractAt("CrunaManager", managerAddress);
 
     await expect(
-      manager
-        .connect(user)
-        .plug("LendingCrunaPluginMock", crunaLendingPluginProxy.address, false, false, "0x00000000", 0, 0, 0),
+      manager.connect(user).plug("LendingCrunaPlugin", crunaLendingPluginProxy.address, false, false, "0x00000000", 0, 0, 0),
     ).to.emit(manager, "PluginStatusChange");
 
-    const nameId = bytes4(keccak256("LendingCrunaPluginMock"));
+    const nameId = bytes4(keccak256("LendingCrunaPlugin"));
     const pluginAddress = await manager.pluginAddress(nameId, "0x00000000");
     pluginInstance = await ethers.getContractAt("LendingCrunaPluginMock", pluginAddress);
+
+    expect(await pluginInstance.nameId()).to.equal(nameId);
 
     // We will check that the pluginInstance returns false when calling requiresToManageTransfer
     expect(await pluginInstance.requiresToManageTransfer()).to.equal(false);
