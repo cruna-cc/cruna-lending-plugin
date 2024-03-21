@@ -288,4 +288,62 @@ describe("LendingCrunaPluginMock tests", function () {
       ).to.equal(pluginInstanceUser2.address);
     });
   });
+
+  describe("Testing rescinding functionality", async function () {
+    it("Buy and plug, then rescind rights then attempt to withdraw then owner transfers", async function () {
+      const magGBadgeTokenId = 1;
+
+      const { tokenId: vaultTokenIdUser1, pluginInstance: pluginInstanceUser1 } =
+        await buyVaultPlugAndSaveDepositorConfig(user1);
+
+      // Use vaultTokenIdUser1 for the tokenId of the Badge to keep them the same, why not?
+      await mintBadgeAndApproveForDeposit(pluginInstanceUser1, mayGBadge, mayGDeployer, magGBadgeTokenId, mayGDepositor, usdc);
+
+      await expect(pluginInstanceUser1.connect(mayGDepositor).depositAsset(mayGBadge.address, magGBadgeTokenId, usdc.address))
+        .to.emit(pluginInstanceUser1, "AssetReceived")
+        .withArgs(mayGBadge.address, magGBadgeTokenId, mayGDepositor.address, threeDaysInSeconds);
+
+      await increaseBlockTimestampBy(threeDaysInSeconds + 1);
+
+      // Attempt to transfer ownership to user2 prematurely (before ownership has been rescinded)
+      await expect(
+        pluginInstanceUser1.connect(user1).transferOwnership(mayGBadge.address, magGBadgeTokenId, user2.address),
+      ).to.be.revertedWith("OwnershipNotRescindedOrAssetAlreadyTransferred");
+
+      // Depositor attempt to call transferOwnership before rescinding ownership
+      await expect(
+        pluginInstanceUser1.connect(mayGDepositor).transferOwnership(mayGBadge.address, magGBadgeTokenId, user2.address),
+      ).to.be.revertedWith("NotVaultOwner");
+
+      // We will have the depositor rescind ownership of the NFT calling rescindOwnership.
+      await expect(pluginInstanceUser1.connect(mayGDepositor).rescindOwnership(mayGBadge.address, magGBadgeTokenId))
+        .to.emit(pluginInstanceUser1, "OwnershipRescinded")
+        .withArgs(mayGDepositor.address, mayGBadge.address, magGBadgeTokenId);
+
+      // Depositor attempts to call transferOwnership after rescinding ownership
+      await expect(
+        pluginInstanceUser1.connect(mayGDepositor).transferOwnership(mayGBadge.address, magGBadgeTokenId, user2.address),
+      ).to.be.revertedWith("NotVaultOwner");
+
+      // Depositor attempts to call withdrawAsset after rescinding ownership
+      await expect(
+        pluginInstanceUser1.connect(mayGDepositor).withdrawAsset(mayGBadge.address, vaultTokenIdUser1, zeroAddress()),
+      ).to.be.revertedWith("OwnershipAlreadyRescinded");
+
+      // Depositor attempts to call transferAssetToPlugin after rescinding ownership
+      await expect(
+        pluginInstanceUser1
+          .connect(mayGDepositor)
+          .transferAssetToPlugin(mayGBadge.address, magGBadgeTokenId, vaultTokenIdUser1, usdc.address),
+      ).to.be.revertedWith("OwnershipAlreadyRescinded");
+
+      // Plugin owner (assuming user1 for this scenario) transfers the NFT to user2.
+      await expect(pluginInstanceUser1.connect(user1).transferOwnership(mayGBadge.address, magGBadgeTokenId, user2.address))
+        .to.emit(mayGBadge, "Transfer")
+        .withArgs(pluginInstanceUser1.address, user2.address, magGBadgeTokenId);
+
+      // Verify user2 is now the owner of the NFT.
+      expect(await mayGBadge.ownerOf(magGBadgeTokenId)).to.equal(user2.address);
+    });
+  });
 });

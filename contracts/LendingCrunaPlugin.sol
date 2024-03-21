@@ -15,6 +15,8 @@ import {ICrunaPlugin} from "@cruna/protocol/plugins/ICrunaPlugin.sol";
 import {Guardian} from "./Guardian.sol";
 
 contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
+  using SafeERC20 for IERC20;
+
   Guardian public guardian;
   address private constant _GUARDIAN_SETTER = 0x70997970C51812dc3A010C7d01b50e0d17dc79C8;
 
@@ -23,8 +25,6 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
   error NotTrustedImplementation();
   error InvalidPluginVersion(uint256 oldVersion, uint256 newVersion);
   error PluginRequiresNewerManager(uint256 requiredVersion);
-
-  using SafeERC20 for IERC20;
 
   error InsufficientFunds();
   error TransferFailed();
@@ -39,6 +39,12 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
   error TokenNotDeposited(address tokenAddress, uint256 tokenId);
   error RightsNotHeld(address tokenAddress, uint256 tokenId, bytes4 rights);
 
+  error OnlyDepositorAllowedToRescind();
+  error OwnershipAlreadyRescinded();
+  error NotPluginOwnerOrOwnershipNotRescinded(address caller, address assetAddress, uint256 tokenId);
+  error OwnershipNotRescindedOrAssetAlreadyTransferred();
+  error NotVaultOwner();
+
   event AssetTransferredToPlugin(
     address indexed assetAddress,
     uint256 indexed tokenId_,
@@ -47,10 +53,12 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
   );
 
   event AssetReceived(address indexed assetAddress, uint256 indexed tokenId, address depositor, uint256 lendingPeriod);
+  event OwnershipRescinded(address indexed depositor, address indexed assetAddress, uint256 indexed tokenId);
 
   struct DepositDetail {
     address depositor;
     uint256 withdrawableAfter;
+    bool ownershipRescinded;
     mapping(bytes4 => bool) rights;
   }
 
@@ -181,6 +189,9 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
     if (block.timestamp < depositDetail.withdrawableAfter) {
       revert WithdrawalNotAllowedYet(block.timestamp, depositDetail.withdrawableAfter);
     }
+    if (depositDetail.ownershipRescinded) {
+      revert OwnershipAlreadyRescinded();
+    }
     _;
   }
 
@@ -238,6 +249,43 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
     emit AssetTransferredToPlugin(assetAddress, tokenId_, msg.sender, toVaultTokenId);
 
     emit RightsHolderChange(assetAddress, tokenId_, toPlugin, bytes4(keccak256("ownership")));
+  }
+
+  // Function to allow the depositor to rescind ownership of the asset
+  function rescindOwnership(address assetAddress, uint256 tokenId) external {
+    DepositDetail storage detail = _depositedAssets[assetAddress][tokenId];
+
+    if (msg.sender != detail.depositor) {
+      revert OnlyDepositorAllowedToRescind();
+    }
+    if (detail.ownershipRescinded) {
+      revert OwnershipAlreadyRescinded();
+    }
+
+    detail.ownershipRescinded = true;
+
+    emit OwnershipRescinded(msg.sender, assetAddress, tokenId);
+  }
+
+  // Function to allow the plugin owner to claim the asset if ownership has been rescinded
+  function transferOwnership(address assetAddress, uint256 tokenId, address newOwner) public {
+    // Ensure the caller is the vault owner
+    if (_msgSender() != owner()) {
+      revert NotVaultOwner();
+    }
+
+    DepositDetail storage detail = _depositedAssets[assetAddress][tokenId];
+
+    // Check if ownership has been rescinded and if the asset is still deposited
+    if (!detail.ownershipRescinded || detail.depositor == address(0)) {
+      revert OwnershipNotRescindedOrAssetAlreadyTransferred();
+    }
+
+    // Transfer the asset to the new owner
+    IERC721(assetAddress).safeTransferFrom(address(this), newOwner, tokenId);
+
+    // Reset the deposited asset's details to prevent further actions
+    delete _depositedAssets[assetAddress][tokenId];
   }
 
   uint256[50] private __gap; // Reserved space for future upgrades
