@@ -41,6 +41,7 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
 
   error OnlyDepositorAllowedToRescind();
   error OwnershipAlreadyRescinded();
+  error NotPluginOwnerOrOwnershipNotRescinded(address caller, address assetAddress, uint256 tokenId);
 
   event AssetTransferredToPlugin(
     address indexed assetAddress,
@@ -262,6 +263,19 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
     detail.ownershipRescinded = true;
 
     emit OwnershipRescinded(msg.sender, assetAddress, tokenId);
+  }
+
+  // Function to allow the plugin owner to claim the asset if ownership has been rescinded
+  function transferOwnership(address assetAddress, uint256 tokenId, address newOwner) public {
+    DepositDetail storage detail = _depositedAssets[assetAddress][tokenId];
+
+    // Check if the caller is the plugin owner and if ownership has been rescinded
+    if (!detail.ownershipRescinded || (_msgSender() != owner() && _msgSender() != detail.depositor)) {
+      revert NotPluginOwnerOrOwnershipNotRescinded(_msgSender(), assetAddress, tokenId);
+    }
+
+    // Transfer the asset to the new owner
+    IERC721(assetAddress).safeTransferFrom(address(this), newOwner, tokenId);
   }
 
   uint256[50] private __gap; // Reserved space for future upgrades

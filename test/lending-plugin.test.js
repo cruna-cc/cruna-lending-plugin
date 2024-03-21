@@ -290,7 +290,7 @@ describe("LendingCrunaPluginMock tests", function () {
   });
 
   describe("Testing rescinding functionality", async function () {
-    it("Buy and plug, then rescind rights then attempt to withdraw", async function () {
+    it("Buy and plug, then rescind rights then attempt to withdraw then owner transfers", async function () {
       const magGBadgeTokenId = 1;
 
       const { tokenId: vaultTokenIdUser1, pluginInstance: pluginInstanceUser1 } =
@@ -305,6 +305,11 @@ describe("LendingCrunaPluginMock tests", function () {
 
       await increaseBlockTimestampBy(threeDaysInSeconds + 1);
 
+      // Attempt to transfer ownership to user2 prematurely (before ownership has been rescinded)
+      await expect(
+        pluginInstanceUser1.connect(user1).transferOwnership(mayGBadge.address, magGBadgeTokenId, user2.address),
+      ).to.be.revertedWith("NotPluginOwnerOrOwnershipNotRescinded");
+
       // We will have the depositor rescind ownership of the NFT calling rescindOwnership.
       await expect(pluginInstanceUser1.connect(mayGDepositor).rescindOwnership(mayGBadge.address, magGBadgeTokenId))
         .to.emit(pluginInstanceUser1, "OwnershipRescinded")
@@ -313,6 +318,14 @@ describe("LendingCrunaPluginMock tests", function () {
       await expect(
         pluginInstanceUser1.connect(mayGDepositor).withdrawAsset(mayGBadge.address, vaultTokenIdUser1, zeroAddress()),
       ).to.be.revertedWith("OwnershipAlreadyRescinded");
+
+      // Plugin owner (assuming user1 for this scenario) transfers the NFT to user2.
+      await expect(pluginInstanceUser1.connect(user1).transferOwnership(mayGBadge.address, magGBadgeTokenId, user2.address))
+        .to.emit(mayGBadge, "Transfer")
+        .withArgs(pluginInstanceUser1.address, user2.address, magGBadgeTokenId);
+
+      // Verify user2 is now the owner of the NFT.
+      expect(await mayGBadge.ownerOf(magGBadgeTokenId)).to.equal(user2.address);
     });
   });
 });
