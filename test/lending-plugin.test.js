@@ -31,7 +31,7 @@ describe("LendingCrunaPluginMock tests", function () {
   async function initAndDeploy() {
     crunaManagerProxy = await CrunaTestUtils.deployManager(deployer);
     crunaVault = await deployUtils.deploy("SomeProtectedNFT", deployer.address);
-    await crunaVault.init(crunaManagerProxy.address, true, true, 1, 0);
+    await crunaVault.init(crunaManagerProxy.address, true, 1, 0);
     factory = await deployUtils.deployProxy("ProtectedNFTFactory", crunaVault.address);
     await crunaVault.setFactory(factory.address);
 

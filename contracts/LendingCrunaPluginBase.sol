@@ -7,7 +7,7 @@ import {CrunaPluginBase} from "@cruna/protocol/plugins/CrunaPluginBase.sol";
 abstract contract LendingCrunaPluginBase is CrunaPluginBase, IERC721Receiver {
   error InvalidValidity();
 
-  function isERC6551Account() external pure returns (bool) {
+  function isERC6551Account() external pure override returns (bool) {
     return false;
   }
 
@@ -36,7 +36,7 @@ abstract contract LendingCrunaPluginBase is CrunaPluginBase, IERC721Receiver {
     // do nothing because it does not need any reset
   }
 
-  function requiresResetOnTransfer() external pure returns (bool) {
+  function requiresResetOnTransfer() external pure override returns (bool) {
     return false;
   }
 

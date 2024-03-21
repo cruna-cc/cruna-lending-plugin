@@ -10,7 +10,20 @@ import {ERC6551AccountLib} from "erc6551/lib/ERC6551AccountLib.sol";
 import {Canonical} from "@cruna/protocol/libs/Canonical.sol";
 import {IERC7531} from "./IERC7531.sol";
 
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import {ICrunaPlugin} from "@cruna/protocol/plugins/ICrunaPlugin.sol";
+import {Guardian} from "./Guardian.sol";
+
 contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
+  Guardian public guardian;
+  address private constant _GUARDIAN_SETTER = 0x70997970C51812dc3A010C7d01b50e0d17dc79C8;
+
+  error NotTheGuardianSetter();
+  error GuardianAlreadySet();
+  error NotTrustedImplementation();
+  error InvalidPluginVersion(uint256 oldVersion, uint256 newVersion);
+  error PluginRequiresNewerManager(uint256 requiredVersion);
+
   using SafeERC20 for IERC20;
 
   error InsufficientFunds();
@@ -50,6 +63,26 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
 
   function _nameId() internal view virtual override returns (bytes4) {
     return bytes4(keccak256("LendingCrunaPlugin"));
+  }
+  function setGuardian(address guardian_) external {
+    if (_msgSender() != _GUARDIAN_SETTER) revert NotTheGuardianSetter();
+    if (guardian_ == address(0)) revert ZeroAddress();
+    if (address(guardian) != address(0)) revert GuardianAlreadySet();
+    guardian = Guardian(guardian_);
+  }
+
+  // It is the plugin's responsibility to be sure that the new implementation is trusted
+  function upgrade(address implementation_) external virtual {
+    if (owner() != _msgSender()) revert NotTheTokenOwner();
+    if (implementation_ == address(0)) revert ZeroAddress();
+    bool trusted = guardian.trusted(implementation_);
+    if (!trusted) revert NotTrustedImplementation();
+    ICrunaPlugin impl = ICrunaPlugin(implementation_);
+    uint256 version_ = impl.version();
+    if (version_ <= _version()) revert InvalidPluginVersion(_version(), version_);
+    uint256 requiredVersion = impl.requiresManagerVersion();
+    if (_conf.manager.version() < requiredVersion) revert PluginRequiresNewerManager(requiredVersion);
+    StorageSlot.getAddressSlot(_IMPLEMENTATION_SLOT).value = implementation_;
   }
 
   function rightsHolderOf(address tokenAddress, uint256 tokenId, bytes4 rights) external view override returns (address) {
@@ -165,7 +198,7 @@ contract LendingCrunaPlugin is LendingCrunaPluginBase, IERC7531 {
   function _calculatePluginAddress(uint256 tokenId) internal view returns (address) {
     return
       ERC6551AccountLib.computeAddress(
-        address(Canonical.crunaRegistry()),
+        address(Canonical.erc7656Registry()),
         ERC6551AccountLib.implementation(),
         0x00,
         block.chainid,
