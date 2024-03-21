@@ -11,18 +11,20 @@ const CrunaTestUtils = {
     const erc6551Registry = await deployUtils.deployBytecodeViaNickSFactory(
       deployer,
       "ERC6551Registry",
-      canonicalBytecodes.ERC6551Registry,
-      "0x0000000000000000000000000000000000000000fd8eb4e1dca713016c518e31",
+      canonicalBytecodes.ERC6551Registry.bytecode,
+      canonicalBytecodes.ERC6551Registry.salt,
     );
     const crunaRegistry = await deployUtils.deployBytecodeViaNickSFactory(
       deployer,
-      "CrunaRegistry",
-      canonicalBytecodes.CrunaRegistry,
+      "ERC7656Registry",
+      canonicalBytecodes.ERC7656Registry.bytecode,
+      canonicalBytecodes.ERC7656Registry.salt,
     );
     const crunaGuardian = await deployUtils.deployBytecodeViaNickSFactory(
       deployer,
       "CrunaGuardian",
-      canonicalBytecodes.CrunaGuardian,
+      canonicalBytecodes.CrunaGuardian.bytecode,
+      canonicalBytecodes.CrunaGuardian.salt,
     );
     return [erc6551Registry, crunaRegistry, crunaGuardian];
   },
