@@ -1,12 +1,14 @@
-Copyright (C) 2023 Cruna
+## License Agreement for LendingCrunaPlugin
 
-This program is free software: you can redistribute it and/or modify it under the
-terms of the GNU General Public License as published by the Free Software
-Foundation, either version 3 of the License, or (at your option) any later version.
+Copyright (C) 2024-present Cruna
 
-This program is distributed in the hope that it will be useful, but WITHOUT ANY
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
-PARTICULAR PURPOSE. See the GNU General Public License for more details.
+All rights reserved.
 
-You may have received a copy of the GNU General Public License along with this
-program. If not, see https://www.gnu.org/licenses/gpl-3.0.en.html.
+This software and associated documentation files (the "Software") are provided for personal, non-commercial use only. You may not use this code except in compliance with this License. You may obtain a copy of the License by reviewing this file or requesting a copy from the copyright holder.
+
+Restrictions:
+- You may not use the Software for commercial purposes without obtaining a license from the copyright holder.
+- You may not distribute, sublicense, or sell copies of the Software.
+- You may not modify, merge, publish, distribute, sublicense, and/or sell copies of the Software for commercial purposes.
+
+The Software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
